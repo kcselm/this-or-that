@@ -1,6 +1,6 @@
 const API_BASE = __DEV__
   ? "http://localhost:8787/api"
-  : "https://api.thisorthat.app/api";
+  : "https://tot-api.kcselm93.workers.dev/api";
 
 const FRIENDLY_MESSAGES: Record<string, string> = {
   ROOM_NOT_FOUND: "That room doesn't exist or has expired.",
