@@ -16,6 +16,20 @@ app.use(
   })
 );
 
+app.onError((err, c) => {
+  if (err instanceof SyntaxError) {
+    return c.json(
+      { error: { code: "VALIDATION_ERROR", message: "Invalid JSON in request body" } },
+      400
+    );
+  }
+  console.error(err);
+  return c.json(
+    { error: { code: "INTERNAL_ERROR", message: "Something went wrong" } },
+    500
+  );
+});
+
 app.route("/api/rooms", rooms);
 app.route("/api/rooms", votes);
 app.route("/api/rooms", results);

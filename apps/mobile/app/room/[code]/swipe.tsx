@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import SwipeCard from "../../../components/SwipeCard";
 import { getVoterId } from "../../../lib/storage";
@@ -14,29 +14,33 @@ export default function SwipeScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [swiping, setSwiping] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const voterId = await getVoterId();
-        const room = await getRoom(code, voterId);
-        const shuffled = seededShuffle(room.items, voterId);
+  const loadRoom = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const voterId = await getVoterId();
+      const room = await getRoom(code, voterId);
+      const shuffled = seededShuffle(room.items, voterId);
 
-        // Resume: skip items already voted on
-        const votedIds = new Set(Object.keys(room.myVotes ?? {}));
-        const startIndex = shuffled.findIndex((item) => !votedIds.has(item.id));
+      // Resume: skip items already voted on
+      const votedIds = new Set(Object.keys(room.myVotes ?? {}));
+      const startIndex = shuffled.findIndex((item) => !votedIds.has(item.id));
 
-        setItems(shuffled);
-        setCurrentIndex(startIndex === -1 ? shuffled.length : startIndex);
-      } catch (e: any) {
-        Alert.alert("Error", e.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+      setItems(shuffled);
+      setCurrentIndex(startIndex === -1 ? shuffled.length : startIndex);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, [code]);
+
+  useEffect(() => {
+    loadRoom();
+  }, [loadRoom]);
 
   const handleSwipe = useCallback(
     async (direction: "yes" | "no") => {
@@ -78,6 +82,18 @@ export default function SwipeScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#6C47FF" />
+        <Text style={styles.loadingText}>Loading items...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>{error}</Text>
+        <Pressable style={styles.retryButton} onPress={loadRoom}>
+          <Text style={styles.retryText}>Try Again</Text>
+        </Pressable>
       </View>
     );
   }
@@ -155,5 +171,27 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#6C47FF",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#999",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#e53e3e",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: "#6C47FF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  retryText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

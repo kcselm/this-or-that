@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { getStatus, type StatusResponse } from "../../../lib/api";
+import { getStatus, ApiError, type StatusResponse } from "../../../lib/api";
 
 export default function WaitingScreen() {
   const router = useRouter();
@@ -21,7 +21,14 @@ export default function WaitingScreen() {
             params: { name },
           });
         }
-      } catch {}
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
+          clearInterval(intervalRef.current);
+          Alert.alert("Room Expired", "This room no longer exists.", [
+            { text: "OK", onPress: () => router.replace("/") },
+          ]);
+        }
+      }
     };
 
     poll();
@@ -52,6 +59,9 @@ export default function WaitingScreen() {
           </View>
         </>
       )}
+      <Pressable style={styles.homeLink} onPress={() => router.replace("/")}>
+        <Text style={styles.homeLinkText}>Leave Room</Text>
+      </Pressable>
     </View>
   );
 }
@@ -102,5 +112,13 @@ const styles = StyleSheet.create({
   pending: {
     fontSize: 14,
     color: "#999",
+  },
+  homeLink: {
+    marginTop: 32,
+    paddingVertical: 8,
+  },
+  homeLinkText: {
+    color: "#999",
+    fontSize: 16,
   },
 });

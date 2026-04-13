@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { getRoom } from "../../../lib/api";
+import { getRoom, ApiError } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
 
 export default function LobbyScreen() {
@@ -27,7 +27,14 @@ export default function LobbyScreen() {
             params: { name },
           });
         }
-      } catch {}
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
+          clearInterval(intervalRef.current);
+          Alert.alert("Room Expired", "This room no longer exists.", [
+            { text: "OK", onPress: () => router.replace("/") },
+          ]);
+        }
+      }
     };
 
     poll();
@@ -46,6 +53,9 @@ export default function LobbyScreen() {
         <Text style={styles.codeLabel}>Room Code</Text>
         <Text style={styles.code}>{code}</Text>
       </View>
+      <Pressable style={styles.homeLink} onPress={() => router.replace("/")}>
+        <Text style={styles.homeLinkText}>Leave Room</Text>
+      </Pressable>
     </View>
   );
 }
@@ -84,5 +94,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#6C47FF",
     letterSpacing: 4,
+  },
+  homeLink: {
+    marginTop: 32,
+    paddingVertical: 8,
+  },
+  homeLinkText: {
+    color: "#999",
+    fontSize: 16,
   },
 });

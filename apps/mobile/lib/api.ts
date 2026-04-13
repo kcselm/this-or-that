@@ -2,23 +2,43 @@ const API_BASE = __DEV__
   ? "http://localhost:8787/api"
   : "https://api.thisorthat.app/api";
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
+const FRIENDLY_MESSAGES: Record<string, string> = {
+  ROOM_NOT_FOUND: "That room doesn't exist or has expired.",
+  ROOM_EXPIRED: "This room has expired.",
+  NOT_CREATOR: "Only the room creator can do that.",
+  INVALID_STATUS: "This action isn't available right now.",
+  VALIDATION_ERROR: "Please check your input and try again.",
+};
 
-  const data = await res.json();
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  } catch {
+    throw new ApiError(
+      "Can't connect to the server. Check your internet connection.",
+      "NETWORK_ERROR",
+      0
+    );
+  }
+
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    throw new ApiError("Something went wrong. Please try again.", "PARSE_ERROR", res.status);
+  }
 
   if (!res.ok) {
-    throw new ApiError(
-      data?.error?.message ?? "Something went wrong",
-      data?.error?.code ?? "UNKNOWN",
-      res.status
-    );
+    const code = data?.error?.code ?? "UNKNOWN";
+    const message = FRIENDLY_MESSAGES[code] ?? data?.error?.message ?? "Something went wrong.";
+    throw new ApiError(message, code, res.status);
   }
 
   return data as T;

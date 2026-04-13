@@ -17,32 +17,47 @@ export default function ResultsScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const [data, setData] = useState<RevealedResults | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadResults = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getResults(code);
+      if (res.revealed) {
+        setData(res);
+      } else {
+        setError("Results aren't ready yet. Waiting for everyone to finish.");
+      }
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await getResults(code);
-        if (res.revealed) {
-          setData(res);
-        }
-      } catch {}
-      setLoading(false);
-    };
-    load();
+    loadResults();
   }, [code]);
 
   if (loading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#6C47FF" />
+        <Text style={styles.loadingText}>Loading results...</Text>
       </View>
     );
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorText}>Results not available yet</Text>
+        <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
+        <Pressable style={styles.retryButton} onPress={loadResults}>
+          <Text style={styles.retryText}>Try Again</Text>
+        </Pressable>
+        <Pressable style={styles.homeLinkButton} onPress={() => router.replace("/")}>
+          <Text style={styles.homeLinkText}>Back to Home</Text>
+        </Pressable>
       </View>
     );
   }
@@ -167,9 +182,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
   },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#999",
+  },
   errorText: {
-    fontSize: 18,
-    color: "#666",
+    fontSize: 16,
+    color: "#e53e3e",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: "#6C47FF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  retryText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  homeLinkButton: {
+    paddingVertical: 8,
+  },
+  homeLinkText: {
+    color: "#6C47FF",
+    fontSize: 16,
   },
   homeButton: {
     backgroundColor: "#6C47FF",
