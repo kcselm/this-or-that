@@ -7,6 +7,7 @@ import Animated, {
   withTiming,
   runOnJS,
   interpolate,
+  interpolateColor,
   Extrapolation,
 } from "react-native-reanimated";
 
@@ -53,6 +54,11 @@ export default function SwipeCard({ title, onSwipe }: Props) {
         )}deg`,
       },
     ],
+    backgroundColor: interpolateColor(
+      translateX.value,
+      [-SWIPE_THRESHOLD * 2, 0, SWIPE_THRESHOLD * 2],
+      ["#fecaca", "#ffffff", "#bbf7d0"]
+    ),
   }));
 
   const yesOpacity = useAnimatedStyle(() => ({
