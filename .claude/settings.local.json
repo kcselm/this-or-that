@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(curl -s -X POST http://127.0.0.1:8787/api/rooms -H 'Content-Type: application/json' -d '{\"topic\":\"Friday dinner\",\"expectedCount\":2,\"creatorVoterId\":\"creator-123\",\"creatorName\":\"Alex\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://127.0.0.1:8787/api/rooms/C39P7R/items -H 'Content-Type: application/json' -d '{\"items\":[\"Thai place\",\"Pizza\",\"Sushi\",\"Tacos\"],\"creatorVoterId\":\"creator-123\"}')",
+      "Bash(curl -s 'http://127.0.0.1:8787/api/rooms/C39P7R?voterId=participant-456')",
+      "Bash(pkill -f \"wrangler dev\")",
+      "Bash(npx create-expo-app@latest mobile --template tabs)",
+      "Bash(npx expo:*)",
+      "Bash(curl:*)",
+      "Bash(pkill -f \"expo\")",
+      "Bash(pkill -f \"wrangler\")"
+    ]
+  }
+}

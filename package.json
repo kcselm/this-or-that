@@ -1,0 +1,7 @@
+{
+  "name": "this-or-that",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ]
+}
