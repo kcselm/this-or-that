@@ -2,7 +2,6 @@ export type Room = {
   id: string;
   code: string;
   topic: string;
-  expected_count: number;
   creator_voter_id: string;
   status: "open" | "voting" | "revealed";
   created_at: string;

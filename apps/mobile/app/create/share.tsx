@@ -1,15 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Alert, Share } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId } from "../../lib/storage";
-import { startVoting } from "../../lib/api";
+import { startVoting, getParticipants, type Participant } from "../../lib/api";
 
 export default function ShareScreen() {
   const router = useRouter();
   const { code, name } = useLocalSearchParams<{ code: string; name: string }>();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const data = await getParticipants(code);
+        setParticipants(data.participants);
+      } catch {}
+    };
+
+    poll();
+    intervalRef.current = setInterval(poll, 3000);
+    return () => clearInterval(intervalRef.current);
+  }, [code]);
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(code);
@@ -32,7 +47,7 @@ export default function ShareScreen() {
       await startVoting(code, voterId);
       router.replace({
         pathname: `/room/${code}/swipe`,
-        params: { name },
+        params: { name, isCreator: "true" },
       });
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -62,6 +77,20 @@ export default function ShareScreen() {
           <Text style={styles.actionText}>Share</Text>
         </Pressable>
       </View>
+
+      {participants.length > 0 && (
+        <View style={styles.participantSection}>
+          <Text style={styles.participantHeading}>
+            In the room ({participants.length})
+          </Text>
+          {participants.map((p) => (
+            <View key={p.voterId} style={styles.participantRow}>
+              <Text style={styles.participantName}>{p.name}</Text>
+              {p.isCreator && <Text style={styles.hostBadge}>You</Text>}
+            </View>
+          ))}
+        </View>
+      )}
 
       <Pressable
         style={[styles.startButton, loading && styles.buttonDisabled]}
@@ -129,6 +158,42 @@ const styles = StyleSheet.create({
     color: "#6C47FF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  participantSection: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  participantHeading: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#999",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  participantRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#f5f3ff",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  participantName: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
+  hostBadge: {
+    fontSize: 12,
+    color: "#6C47FF",
+    fontWeight: "700",
+    backgroundColor: "#ede9fe",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: "hidden",
   },
   startButton: {
     backgroundColor: "#6C47FF",

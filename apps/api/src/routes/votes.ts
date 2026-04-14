@@ -65,9 +65,9 @@ votes.post("/:code/votes", async (c) => {
 
   const voted = voterVotes?.count ?? 0;
 
-  // Auto-reveal: check if enough voters have completed
+  // Auto-reveal: check if all voters have completed
   if (voted === totalItems) {
-    await maybeReveal(db, room.id, room.expected_count, totalItems);
+    await maybeReveal(db, room.id, totalItems);
   }
 
   return Response.json(
@@ -79,11 +79,15 @@ votes.post("/:code/votes", async (c) => {
 async function maybeReveal(
   db: D1Database,
   roomId: string,
-  expectedCount: number,
   totalItems: number
 ) {
-  // Count voters who have voted on all items
-  const result = await db
+  // Count total voters and voters who have voted on all items
+  const totalVoters = await db
+    .prepare("SELECT COUNT(DISTINCT voter_id) as count FROM votes WHERE room_id = ?")
+    .bind(roomId)
+    .first<{ count: number }>();
+
+  const completed = await db
     .prepare(
       `SELECT COUNT(*) as completed FROM (
         SELECT voter_id FROM votes WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
@@ -92,7 +96,10 @@ async function maybeReveal(
     .bind(roomId, totalItems)
     .first<{ completed: number }>();
 
-  if (result && result.completed >= expectedCount) {
+  // Auto-reveal when all voters are done and there are at least 2
+  const voterCount = totalVoters?.count ?? 0;
+  const completedCount = completed?.completed ?? 0;
+  if (voterCount >= 2 && completedCount === voterCount) {
     await db
       .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
       .bind(roomId)

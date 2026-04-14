@@ -8,13 +8,10 @@ export const rooms = createRouter();
 // POST /api/rooms — Create a new room
 rooms.post("/", async (c) => {
   const body = await c.req.json();
-  const { topic, expectedCount, creatorVoterId, creatorName } = body;
+  const { topic, creatorVoterId, creatorName } = body;
 
   if (!topic || typeof topic !== "string" || topic.length < 1 || topic.length > 100) {
     return validationError("Topic is required and must be 1-100 characters");
-  }
-  if (!Number.isInteger(expectedCount) || expectedCount < 2 || expectedCount > 20) {
-    return validationError("Expected count must be an integer between 2 and 20");
   }
   if (!creatorVoterId || typeof creatorVoterId !== "string") {
     return validationError("Creator voter ID is required");
@@ -45,13 +42,19 @@ rooms.post("/", async (c) => {
 
   await db
     .prepare(
-      "INSERT INTO rooms (id, code, topic, expected_count, creator_voter_id, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?)"
+      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, created_at, expires_at) VALUES (?, ?, ?, ?, 'open', ?, ?)"
     )
-    .bind(id, code!, topic.trim(), expectedCount, creatorVoterId, now, expiresAt)
+    .bind(id, code!, topic.trim(), creatorVoterId, now, expiresAt)
+    .run();
+
+  // Auto-join the creator as a participant
+  await db
+    .prepare("INSERT INTO participants (id, room_id, voter_id, voter_name) VALUES (?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), id, creatorVoterId, creatorName.trim())
     .run();
 
   return Response.json(
-    { id, code: code!, topic: topic.trim(), expectedCount, createdAt: now, expiresAt },
+    { id, code: code!, topic: topic.trim(), createdAt: now, expiresAt },
     { status: 201 }
   );
 });
@@ -179,7 +182,6 @@ rooms.get("/:code", async (c) => {
     id: room.id,
     code: room.code,
     topic: room.topic,
-    expectedCount: room.expected_count,
     status: room.status,
     items,
   };
@@ -194,4 +196,59 @@ rooms.get("/:code", async (c) => {
   }
 
   return Response.json(response);
+});
+
+// POST /api/rooms/:code/join — Register as a participant
+rooms.post("/:code/join", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const body = await c.req.json();
+  const { voterId, voterName } = body;
+
+  if (!voterId || typeof voterId !== "string") {
+    return validationError("voterId is required");
+  }
+  if (!voterName || typeof voterName !== "string" || voterName.length < 1 || voterName.length > 30) {
+    return validationError("voterName is required and must be 1-30 characters");
+  }
+
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+
+  // Upsert: ignore if already joined
+  const existing = await db
+    .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
+    .bind(room.id, voterId)
+    .first();
+
+  if (!existing) {
+    await db
+      .prepare("INSERT INTO participants (id, room_id, voter_id, voter_name) VALUES (?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), room.id, voterId, voterName.trim())
+      .run();
+  }
+
+  return Response.json({ success: true });
+});
+
+// GET /api/rooms/:code/participants — List who has joined
+rooms.get("/:code/participants", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+
+  const { results: rows } = await db
+    .prepare("SELECT voter_id, voter_name, joined_at FROM participants WHERE room_id = ? ORDER BY joined_at ASC")
+    .bind(room.id)
+    .all<{ voter_id: string; voter_name: string; joined_at: string }>();
+
+  return Response.json({
+    participants: rows.map((r) => ({
+      voterId: r.voter_id,
+      name: r.voter_name,
+      isCreator: r.voter_id === room.creator_voter_id,
+    })),
+  });
 });

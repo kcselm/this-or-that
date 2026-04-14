@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId } from "../../lib/storage";
-import { getRoom } from "../../lib/api";
+import { getRoom, joinRoom } from "../../lib/api";
 
 export default function NameScreen() {
   const router = useRouter();
@@ -27,6 +27,9 @@ export default function NameScreen() {
     try {
       const voterId = await getVoterId();
       const room = await getRoom(code, voterId);
+
+      // Register as a participant
+      await joinRoom(code, { voterId, voterName: trimmed });
 
       if (room.status === "open") {
         router.replace({

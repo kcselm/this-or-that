@@ -1,4 +1,12 @@
--- Rooms table
+-- Remove expected_count from rooms table
+-- Must recreate all tables due to SQLite FK reference rewriting on rename
+
+-- Step 1: Rename all tables
+ALTER TABLE rooms RENAME TO rooms_old;
+ALTER TABLE items RENAME TO items_old;
+ALTER TABLE votes RENAME TO votes_old;
+
+-- Step 2: Recreate tables with correct schema
 CREATE TABLE rooms (
   id TEXT PRIMARY KEY,
   code TEXT UNIQUE NOT NULL,
@@ -9,7 +17,6 @@ CREATE TABLE rooms (
   expires_at TEXT NOT NULL
 );
 
--- Items in a room
 CREATE TABLE items (
   id TEXT PRIMARY KEY,
   room_id TEXT NOT NULL REFERENCES rooms(id),
@@ -18,7 +25,6 @@ CREATE TABLE items (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Votes (one per voter per item)
 CREATE TABLE votes (
   id TEXT PRIMARY KEY,
   room_id TEXT NOT NULL REFERENCES rooms(id),
@@ -30,19 +36,23 @@ CREATE TABLE votes (
   UNIQUE(item_id, voter_id)
 );
 
--- Participants (who has joined the room)
-CREATE TABLE participants (
-  id TEXT PRIMARY KEY,
-  room_id TEXT NOT NULL REFERENCES rooms(id),
-  voter_id TEXT NOT NULL,
-  voter_name TEXT NOT NULL,
-  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(room_id, voter_id)
-);
+-- Step 3: Copy data
+INSERT INTO rooms (id, code, topic, creator_voter_id, status, created_at, expires_at)
+  SELECT id, code, topic, creator_voter_id, status, created_at, expires_at FROM rooms_old;
 
--- Indexes
+INSERT INTO items (id, room_id, title, sort_order, created_at)
+  SELECT id, room_id, title, sort_order, created_at FROM items_old;
+
+INSERT INTO votes (id, room_id, item_id, voter_id, voter_name, vote, created_at)
+  SELECT id, room_id, item_id, voter_id, voter_name, vote, created_at FROM votes_old;
+
+-- Step 4: Drop old tables
+DROP TABLE votes_old;
+DROP TABLE items_old;
+DROP TABLE rooms_old;
+
+-- Step 5: Recreate indexes
 CREATE INDEX idx_rooms_code ON rooms(code);
 CREATE INDEX idx_items_room ON items(room_id);
 CREATE INDEX idx_votes_room ON votes(room_id);
 CREATE INDEX idx_votes_item ON votes(item_id);
-CREATE INDEX idx_participants_room ON participants(room_id);

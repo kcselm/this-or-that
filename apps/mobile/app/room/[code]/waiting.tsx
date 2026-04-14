@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { getStatus, ApiError, type StatusResponse } from "../../../lib/api";
+import { getStatus, revealResults, ApiError, type StatusResponse } from "../../../lib/api";
+import { getVoterId } from "../../../lib/storage";
 
 export default function WaitingScreen() {
   const router = useRouter();
-  const { code, name } = useLocalSearchParams<{ code: string; name: string }>();
+  const { code, name, isCreator: isCreatorParam } = useLocalSearchParams<{
+    code: string;
+    name: string;
+    isCreator?: string;
+  }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
+  const [revealing, setRevealing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const isCreator = isCreatorParam === "true";
 
   useEffect(() => {
     const poll = async () => {
@@ -44,7 +51,7 @@ export default function WaitingScreen() {
       {status && (
         <>
           <Text style={styles.count}>
-            {status.completedCount} of {status.expectedCount} done
+            {status.completedCount} of {status.totalVoters} done
           </Text>
 
           <View style={styles.voterList}>
@@ -58,6 +65,30 @@ export default function WaitingScreen() {
             ))}
           </View>
         </>
+      )}
+      {isCreator && status && status.completedCount > 0 && (
+        <Pressable
+          style={[styles.revealButton, revealing && styles.buttonDisabled]}
+          onPress={async () => {
+            setRevealing(true);
+            try {
+              const voterId = await getVoterId();
+              await revealResults(code, voterId);
+              router.replace({
+                pathname: `/room/${code}/results`,
+                params: { name },
+              });
+            } catch (e: any) {
+              Alert.alert("Error", e.message);
+              setRevealing(false);
+            }
+          }}
+          disabled={revealing}
+        >
+          <Text style={styles.revealButtonText}>
+            {revealing ? "Revealing..." : "Reveal Results"}
+          </Text>
+        </Pressable>
       )}
       <Pressable style={styles.homeLink} onPress={() => router.replace("/")}>
         <Text style={styles.homeLinkText}>Leave Room</Text>
@@ -112,6 +143,22 @@ const styles = StyleSheet.create({
   pending: {
     fontSize: 14,
     color: "#999",
+  },
+  revealButton: {
+    backgroundColor: "#6C47FF",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 24,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  revealButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   homeLink: {
     marginTop: 32,

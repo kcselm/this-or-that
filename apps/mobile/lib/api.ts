@@ -60,14 +60,12 @@ export type CreateRoomResponse = {
   id: string;
   code: string;
   topic: string;
-  expectedCount: number;
   createdAt: string;
   expiresAt: string;
 };
 
 export function createRoom(body: {
   topic: string;
-  expectedCount: number;
   creatorVoterId: string;
   creatorName: string;
 }) {
@@ -107,7 +105,6 @@ export type RoomResponse = {
   id: string;
   code: string;
   topic: string;
-  expectedCount: number;
   status: "open" | "voting" | "revealed";
   items: { id: string; title: string }[];
   myVotes?: Record<string, string>;
@@ -116,6 +113,25 @@ export type RoomResponse = {
 export function getRoom(code: string, voterId?: string) {
   const params = voterId ? `?voterId=${voterId}` : "";
   return request<RoomResponse>(`/rooms/${code}${params}`);
+}
+
+// --- Participant endpoints ---
+
+export type Participant = {
+  voterId: string;
+  name: string;
+  isCreator: boolean;
+};
+
+export function joinRoom(code: string, body: { voterId: string; voterName: string }) {
+  return request<{ success: boolean }>(`/rooms/${code}/join`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getParticipants(code: string) {
+  return request<{ participants: Participant[] }>(`/rooms/${code}/participants`);
 }
 
 // --- Vote endpoints ---
@@ -138,7 +154,7 @@ export function submitVote(
 // --- Status/Results endpoints ---
 
 export type StatusResponse = {
-  expectedCount: number;
+  totalVoters: number;
   completedCount: number;
   isRevealed: boolean;
   voters: { name: string; completed: boolean }[];
@@ -164,9 +180,16 @@ export type ResultsResponse =
   | {
       revealed: false;
       completedCount: number;
-      expectedCount: number;
+      totalVoters: number;
     };
 
 export function getResults(code: string) {
   return request<ResultsResponse>(`/rooms/${code}/results`);
+}
+
+export function revealResults(code: string, creatorVoterId: string) {
+  return request<{ success: boolean; status: string }>(`/rooms/${code}/reveal`, {
+    method: "POST",
+    body: JSON.stringify({ creatorVoterId }),
+  });
 }

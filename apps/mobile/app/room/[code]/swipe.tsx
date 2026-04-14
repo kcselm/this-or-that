@@ -10,7 +10,11 @@ type Item = { id: string; title: string };
 
 export default function SwipeScreen() {
   const router = useRouter();
-  const { code, name } = useLocalSearchParams<{ code: string; name: string }>();
+  const { code, name, isCreator } = useLocalSearchParams<{
+    code: string;
+    name: string;
+    isCreator?: string;
+  }>();
   const [items, setItems] = useState<Item[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,7 +67,7 @@ export default function SwipeScreen() {
           if (nextIndex >= items.length) {
             router.replace({
               pathname: `/room/${code}/waiting`,
-              params: { name },
+              params: { name, isCreator: isCreator ?? "false" },
             });
           } else {
             setCurrentIndex(nextIndex);

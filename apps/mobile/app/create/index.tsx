@@ -17,26 +17,20 @@ export default function CreateRoomScreen() {
   const router = useRouter();
   const [topic, setTopic] = useState("");
   const [name, setName] = useState("");
-  const [count, setCount] = useState("2");
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
     const trimmedTopic = topic.trim();
     const trimmedName = name.trim();
-    const expectedCount = parseInt(count, 10);
 
     if (!trimmedTopic) return Alert.alert("Error", "Enter a topic");
     if (!trimmedName) return Alert.alert("Error", "Enter your name");
-    if (!expectedCount || expectedCount < 2 || expectedCount > 20) {
-      return Alert.alert("Error", "Participant count must be 2-20");
-    }
 
     setLoading(true);
     try {
       const voterId = await getVoterId();
       const room = await createRoom({
         topic: trimmedTopic,
-        expectedCount,
         creatorVoterId: voterId,
         creatorName: trimmedName,
       });
@@ -73,16 +67,6 @@ export default function CreateRoomScreen() {
         value={name}
         onChangeText={setName}
         maxLength={30}
-      />
-
-      <Text style={styles.label}>How many people (including you)?</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="2"
-        value={count}
-        onChangeText={setCount}
-        keyboardType="number-pad"
-        maxLength={2}
       />
 
       <Pressable

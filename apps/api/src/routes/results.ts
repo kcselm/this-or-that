@@ -1,6 +1,6 @@
 import { createRouter } from "../types";
 import { getRoomByCode, getItemsByRoomId, getItemCount } from "../db/queries";
-import { notFound } from "../lib/validation";
+import { notFound, notCreator, invalidStatus, validationError } from "../lib/validation";
 
 export const results = createRouter();
 
@@ -30,8 +30,10 @@ results.get("/:code/status", async (c) => {
 
   const completedCount = voters.filter((v) => v.completed).length;
 
+  const totalVoters = voters.length;
+
   return Response.json({
-    expectedCount: room.expected_count,
+    totalVoters,
     completedCount,
     isRevealed: room.status === "revealed",
     voters,
@@ -58,10 +60,15 @@ results.get("/:code/results", async (c) => {
       .bind(room.id, totalItems)
       .first<{ completed: number }>();
 
+    const totalVoters = await db
+      .prepare("SELECT COUNT(DISTINCT voter_id) as count FROM votes WHERE room_id = ?")
+      .bind(room.id)
+      .first<{ count: number }>();
+
     return Response.json({
       revealed: false,
       completedCount: result?.completed ?? 0,
-      expectedCount: room.expected_count,
+      totalVoters: totalVoters?.count ?? 0,
     });
   }
 
@@ -107,4 +114,28 @@ results.get("/:code/results", async (c) => {
     totalVoters: voterCount?.count ?? 0,
     results: resultsData,
   });
+});
+
+// POST /api/rooms/:code/reveal — Creator force-reveals results
+results.post("/:code/reveal", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const body = await c.req.json();
+  const { creatorVoterId } = body;
+
+  if (!creatorVoterId || typeof creatorVoterId !== "string") {
+    return validationError("Creator voter ID is required");
+  }
+
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+  if (room.creator_voter_id !== creatorVoterId) return notCreator();
+  if (room.status !== "voting") return invalidStatus("Room must be in voting status to reveal");
+
+  await db
+    .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ?")
+    .bind(room.id)
+    .run();
+
+  return Response.json({ success: true, status: "revealed" });
 });
