@@ -50,19 +50,19 @@ export default function HomeScreen() {
           })
         } else {
           router.push({
-            pathname: `/room/${activeRoom.code}/lobby`,
-            params: { name: activeRoom.name },
+            pathname: "/room/[code]/lobby",
+            params: { code: activeRoom.code, name: activeRoom.name },
           })
         }
       } else if (data.status === "voting") {
         router.push({
-          pathname: `/room/${activeRoom.code}/swipe`,
-          params: { name: activeRoom.name },
+          pathname: "/room/[code]/swipe",
+          params: { code: activeRoom.code, name: activeRoom.name },
         })
       } else {
         router.push({
-          pathname: `/room/${activeRoom.code}/results`,
-          params: { name: activeRoom.name },
+          pathname: "/room/[code]/results",
+          params: { code: activeRoom.code, name: activeRoom.name },
         })
       }
     } catch {
