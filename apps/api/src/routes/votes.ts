@@ -81,9 +81,9 @@ async function maybeReveal(
   roomId: string,
   totalItems: number
 ) {
-  // Count total voters and voters who have voted on all items
-  const totalVoters = await db
-    .prepare("SELECT COUNT(DISTINCT voter_id) as count FROM votes WHERE room_id = ?")
+  // Count registered participants (everyone who joined the room)
+  const participantCount = await db
+    .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
     .bind(roomId)
     .first<{ count: number }>();
 
@@ -96,10 +96,10 @@ async function maybeReveal(
     .bind(roomId, totalItems)
     .first<{ completed: number }>();
 
-  // Auto-reveal when all voters are done and there are at least 2
-  const voterCount = totalVoters?.count ?? 0;
+  // Auto-reveal when ALL participants have finished voting
+  const totalParticipants = participantCount?.count ?? 0;
   const completedCount = completed?.completed ?? 0;
-  if (voterCount >= 2 && completedCount === voterCount) {
+  if (totalParticipants >= 2 && completedCount >= totalParticipants) {
     await db
       .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
       .bind(roomId)

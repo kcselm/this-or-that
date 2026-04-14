@@ -14,16 +14,22 @@ results.get("/:code/status", async (c) => {
 
   const totalItems = await getItemCount(db, room.id);
 
-  // Get all voters and their vote counts
-  const { results: voterRows } = await db
+  // Get all registered participants
+  const { results: participantRows } = await db
     .prepare(
-      `SELECT voter_id, voter_name, COUNT(*) as vote_count
-       FROM votes WHERE room_id = ? GROUP BY voter_id`
+      `SELECT p.voter_id, p.voter_name, COALESCE(v.vote_count, 0) as vote_count
+       FROM participants p
+       LEFT JOIN (
+         SELECT voter_id, COUNT(*) as vote_count
+         FROM votes WHERE room_id = ?
+         GROUP BY voter_id
+       ) v ON p.voter_id = v.voter_id
+       WHERE p.room_id = ?`
     )
-    .bind(room.id)
+    .bind(room.id, room.id)
     .all<{ voter_id: string; voter_name: string; vote_count: number }>();
 
-  const voters = voterRows.map((row) => ({
+  const voters = participantRows.map((row) => ({
     name: row.voter_name,
     completed: row.vote_count >= totalItems,
   }));
