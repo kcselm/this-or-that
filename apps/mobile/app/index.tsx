@@ -1,12 +1,12 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
-import { colors, spacing, radius, typography, shadows } from "../lib/theme";
+import { View, Text, StyleSheet, Pressable } from "react-native"
+import { useRouter } from "expo-router"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated"
+import { colors, spacing, radius, typography, shadows } from "../lib/theme"
 
 export default function HomeScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
@@ -17,7 +17,10 @@ export default function HomeScreen() {
         <View style={[styles.dot, styles.dotAmber]} />
       </View>
 
-      <Animated.View entering={FadeInUp.duration(600).springify()} style={styles.header}>
+      <Animated.View
+        entering={FadeInUp.duration(600).springify()}
+        style={styles.header}
+      >
         <Text style={styles.titleLine1}>This</Text>
         <Text style={styles.titleOr}>or</Text>
         <Text style={styles.titleLine2}>That</Text>
@@ -58,15 +61,8 @@ export default function HomeScreen() {
           <Text style={styles.joinButtonArrow}>→</Text>
         </Pressable>
       </Animated.View>
-
-      <Animated.Text
-        entering={FadeInDown.duration(400).delay(500)}
-        style={styles.tagline}
-      >
-        No accounts. No fuss. Just swipe.
-      </Animated.Text>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -186,4 +182,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxxl,
     textAlign: "center",
   },
-});
+})

@@ -31,6 +31,7 @@ export default function LobbyScreen() {
   const router = useRouter();
   const { code, name } = useLocalSearchParams<{ code: string; name: string }>();
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [topic, setTopic] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function LobbyScreen() {
       try {
         const voterId = await getVoterId();
         const room = await getRoom(code, voterId);
+        if (room.topic) setTopic(room.topic);
         if (room.status === "voting") {
           clearInterval(intervalRef.current);
           router.replace({
@@ -78,7 +80,12 @@ export default function LobbyScreen() {
           <PulsingDot />
           <Text style={styles.statusText}>Waiting for host</Text>
         </Animated.View>
-        <Animated.Text entering={FadeInUp.duration(400).delay(100)} style={styles.subheading}>
+        {topic && (
+          <Animated.Text entering={FadeInUp.duration(400).delay(100)} style={styles.topicText}>
+            {topic}
+          </Animated.Text>
+        )}
+        <Animated.Text entering={FadeInUp.duration(400).delay(150)} style={styles.subheading}>
           The host is still setting up. Voting will start soon...
         </Animated.Text>
       </View>
@@ -143,6 +150,12 @@ const styles = StyleSheet.create({
   statusText: {
     ...typography.h2,
     color: colors.charcoal,
+  },
+  topicText: {
+    ...typography.h1,
+    color: colors.coral,
+    textAlign: "center",
+    marginBottom: spacing.sm,
   },
   subheading: {
     ...typography.body,
