@@ -10,7 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { getVoterId } from "../../lib/storage";
+import { getVoterId, saveActiveRoom } from "../../lib/storage";
 import { getRoom, joinRoom } from "../../lib/api";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
@@ -31,8 +31,12 @@ export default function NameScreen() {
 
       // Register as a participant
       await joinRoom(code, { voterId, voterName: trimmed });
+      await saveActiveRoom({ code, topic: room.topic, name: trimmed });
 
-      if (room.status === "open") {
+      if (room.status === "closed") {
+        Alert.alert("Room Closed", "The host closed this room.");
+        return;
+      } else if (room.status === "open") {
         router.replace({
           pathname: `/room/${code}/lobby`,
           params: { name: trimmed },

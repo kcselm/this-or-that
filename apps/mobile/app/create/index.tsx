@@ -8,6 +8,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { getVoterId } from "../../lib/storage";
@@ -18,6 +19,7 @@ export default function CreateRoomScreen() {
   const router = useRouter();
   const [topic, setTopic] = useState("");
   const [name, setName] = useState("");
+  const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
@@ -34,9 +36,10 @@ export default function CreateRoomScreen() {
         topic: trimmedTopic,
         creatorVoterId: voterId,
         creatorName: trimmedName,
+        allowSuggestions,
       });
       router.replace({
-        pathname: "/create/items",
+        pathname: "/create/share",
         params: { code: room.code, name: trimmedName },
       });
     } catch (e: any) {
@@ -76,6 +79,21 @@ export default function CreateRoomScreen() {
         />
       </View>
 
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleLabel}>
+          <Text style={styles.label}>Let others add items</Text>
+          <Text style={styles.toggleHint}>
+            Friends can suggest options after joining
+          </Text>
+        </View>
+        <Switch
+          value={allowSuggestions}
+          onValueChange={setAllowSuggestions}
+          trackColor={{ false: colors.sand, true: colors.tealLight }}
+          thumbColor={allowSuggestions ? colors.teal : colors.mist}
+        />
+      </View>
+
       <Pressable
         style={({ pressed }) => [
           styles.button,
@@ -86,7 +104,7 @@ export default function CreateRoomScreen() {
         disabled={loading}
       >
         <Text style={styles.buttonText}>
-          {loading ? "Creating..." : "Next"}
+          {loading ? "Creating..." : "Create Room"}
         </Text>
       </Pressable>
     </KeyboardAvoidingView>
@@ -115,6 +133,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: colors.warmWhite,
     color: colors.charcoal,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.warmWhite,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.xl,
+  },
+  toggleLabel: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  toggleHint: {
+    ...typography.caption,
+    color: colors.mist,
+    marginTop: 2,
   },
   button: {
     backgroundColor: colors.coral,

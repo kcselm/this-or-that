@@ -68,6 +68,7 @@ export function createRoom(body: {
   topic: string;
   creatorVoterId: string;
   creatorName: string;
+  allowSuggestions?: boolean;
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -87,11 +88,32 @@ export function addItems(code: string, body: { items: string[]; creatorVoterId: 
   });
 }
 
+export function addItem(code: string, body: { item: string; creatorVoterId?: string; voterId?: string; voterName?: string }) {
+  return request<AddItemsResponse>(`/rooms/${code}/items`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateRoomSettings(code: string, body: { creatorVoterId: string; allowSuggestions: boolean }) {
+  return request<{ success: boolean; allowSuggestions: boolean }>(`/rooms/${code}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
 export function deleteItem(code: string, itemId: string, creatorVoterId: string) {
   return request<{ success: boolean; totalItems: number }>(
     `/rooms/${code}/items/${itemId}?creatorVoterId=${creatorVoterId}`,
     { method: "DELETE" }
   );
+}
+
+export function closeRoom(code: string, creatorVoterId: string) {
+  return request<{ success: boolean; status: string }>(`/rooms/${code}/close`, {
+    method: "POST",
+    body: JSON.stringify({ creatorVoterId }),
+  });
 }
 
 export function startVoting(code: string, creatorVoterId: string) {
@@ -101,12 +123,19 @@ export function startVoting(code: string, creatorVoterId: string) {
   );
 }
 
+export type RoomItem = {
+  id: string;
+  title: string;
+  addedBy: { voterId: string; name: string } | null;
+};
+
 export type RoomResponse = {
   id: string;
   code: string;
   topic: string;
-  status: "open" | "voting" | "revealed";
-  items: { id: string; title: string }[];
+  status: "open" | "voting" | "revealed" | "closed";
+  allowSuggestions: boolean;
+  items: RoomItem[];
   myVotes?: Record<string, string>;
 };
 

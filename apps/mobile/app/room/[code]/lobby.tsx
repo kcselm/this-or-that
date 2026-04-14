@@ -1,9 +1,33 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Pressable,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import Animated, { FadeInDown, FadeInUp, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
-import { getRoom, getParticipants, ApiError, type Participant } from "../../../lib/api";
-import { getVoterId } from "../../../lib/storage";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import {
+  getRoom,
+  getParticipants,
+  addItem,
+  ApiError,
+  type Participant,
+  type RoomItem,
+} from "../../../lib/api";
+import { getVoterId, saveActiveRoom } from "../../../lib/storage";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 function PulsingDot() {
@@ -32,15 +56,31 @@ export default function LobbyScreen() {
   const { code, name } = useLocalSearchParams<{ code: string; name: string }>();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [topic, setTopic] = useState<string | null>(null);
+  const [items, setItems] = useState<RoomItem[]>([]);
+  const [allowSuggestions, setAllowSuggestions] = useState(false);
+  const [currentItem, setCurrentItem] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     const poll = async () => {
       try {
         const voterId = await getVoterId();
         const room = await getRoom(code, voterId);
-        if (room.topic) setTopic(room.topic);
-        if (room.status === "voting") {
+        if (room.topic) {
+          setTopic(room.topic);
+          saveActiveRoom({ code, topic: room.topic, name });
+        }
+        setAllowSuggestions(room.allowSuggestions);
+        setItems(room.items);
+
+        if (room.status === "closed") {
+          clearInterval(intervalRef.current);
+          Alert.alert("Room Closed", "The host closed this room.", [
+            { text: "OK", onPress: () => router.replace("/") },
+          ]);
+          return;
+        } else if (room.status === "voting") {
           clearInterval(intervalRef.current);
           router.replace({
             pathname: `/room/${code}/swipe`,
@@ -73,8 +113,31 @@ export default function LobbyScreen() {
     return () => clearInterval(intervalRef.current);
   }, [code, name, router]);
 
+  const handleAddItem = async () => {
+    const trimmed = currentItem.trim();
+    if (!trimmed) return;
+    if (items.length >= 15) return Alert.alert("Limit", "Maximum 15 items");
+    if (items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())) {
+      return Alert.alert("Duplicate", "That item already exists");
+    }
+
+    try {
+      const voterId = await getVoterId();
+      await addItem(code, { item: trimmed, voterId, voterName: name });
+      setCurrentItem("");
+      // Refresh items
+      const room = await getRoom(code, voterId);
+      setItems(room.items);
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <View style={styles.topSection}>
         <Animated.View entering={FadeInUp.duration(400)} style={styles.statusRow}>
           <PulsingDot />
@@ -86,13 +149,78 @@ export default function LobbyScreen() {
           </Animated.Text>
         )}
         <Animated.Text entering={FadeInUp.duration(400).delay(150)} style={styles.subheading}>
-          The host is still setting up. Voting will start soon...
+          {allowSuggestions
+            ? "Add items while you wait!"
+            : "The host is still setting up. Voting will start soon..."}
         </Animated.Text>
       </View>
 
+      {/* Collaborative items section */}
+      {allowSuggestions && (
+        <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.itemsSection}>
+          <View style={styles.itemsHeader}>
+            <Text style={styles.sectionHeading}>OPTIONS ({items.length}/15)</Text>
+          </View>
+
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.id}
+            style={styles.itemList}
+            contentContainerStyle={styles.itemListContent}
+            renderItem={({ item, index }) => (
+              <View style={styles.itemRow}>
+                <View style={styles.itemNumber}>
+                  <Text style={styles.itemNumberText}>{index + 1}</Text>
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemText} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  {item.addedBy && (
+                    <Text style={styles.addedByText}>
+                      {item.addedBy.name}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No items yet — be the first to add one!</Text>
+            }
+          />
+
+          <View style={styles.inputRow}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder="Suggest an option..."
+              placeholderTextColor={colors.mist}
+              value={currentItem}
+              onChangeText={setCurrentItem}
+              onSubmitEditing={handleAddItem}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              maxLength={100}
+            />
+            <Pressable
+              style={({ pressed }) => [
+                styles.addButton,
+                pressed && styles.addButtonPressed,
+              ]}
+              onPress={() => {
+                handleAddItem();
+                inputRef.current?.focus();
+              }}
+            >
+              <Text style={styles.addButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      )}
+
       {participants.length > 0 && (
-        <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.participantSection}>
-          <Text style={styles.participantHeading}>
+        <Animated.View entering={FadeInDown.duration(400).delay(300)} style={styles.participantSection}>
+          <Text style={styles.sectionHeading}>
             IN THE ROOM ({participants.length})
           </Text>
           <View style={styles.participantList}>
@@ -118,7 +246,7 @@ export default function LobbyScreen() {
       <View style={styles.bottomSection}>
         <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>ROOM CODE</Text>
-          <Text style={styles.code}>{code}</Text>
+          <Text style={styles.codeText}>{code}</Text>
         </View>
         <Pressable
           style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]}
@@ -127,7 +255,7 @@ export default function LobbyScreen() {
           <Text style={styles.leaveText}>Leave Room</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -139,7 +267,7 @@ const styles = StyleSheet.create({
   },
   topSection: {
     alignItems: "center",
-    marginTop: spacing.xxxl,
+    marginTop: spacing.xl,
   },
   statusRow: {
     flexDirection: "row",
@@ -161,18 +289,105 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.slate,
     textAlign: "center",
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
   },
-  participantSection: {
+  itemsSection: {
     flex: 1,
+    minHeight: 100,
   },
-  participantHeading: {
+  itemsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  sectionHeading: {
     ...typography.tiny,
     color: colors.mist,
+  },
+  itemList: {
+    flex: 1,
+  },
+  itemListContent: {
+    gap: spacing.sm,
+  },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.warmWhite,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    gap: spacing.md,
+    ...shadows.soft,
+  },
+  itemNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.sandLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemNumberText: {
+    ...typography.caption,
+    color: colors.slate,
+    fontWeight: "700",
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemText: {
+    ...typography.body,
+    color: colors.charcoal,
+  },
+  addedByText: {
+    ...typography.caption,
+    color: colors.mist,
+    marginTop: 1,
+  },
+  emptyText: {
+    ...typography.body,
+    color: colors.mist,
+    textAlign: "center",
+    paddingVertical: spacing.lg,
+  },
+  inputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: colors.sand,
+    borderRadius: radius.md,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: colors.warmWhite,
+    color: colors.charcoal,
+  },
+  addButton: {
+    backgroundColor: colors.teal,
+    width: 48,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addButtonPressed: {
+    backgroundColor: colors.tealDark,
+    transform: [{ scale: 0.95 }],
+  },
+  addButtonText: {
+    color: colors.warmWhite,
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  participantSection: {
     marginBottom: spacing.md,
   },
   participantList: {
     gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   participantRow: {
     flexDirection: "row",
@@ -229,14 +444,14 @@ const styles = StyleSheet.create({
     color: colors.mist,
     marginBottom: spacing.xs,
   },
-  code: {
+  codeText: {
     fontSize: 28,
     fontWeight: "800",
     color: colors.coral,
     letterSpacing: 4,
   },
   leaveButton: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
   },

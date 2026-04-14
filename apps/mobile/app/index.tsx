@@ -1,12 +1,80 @@
+import { useCallback, useState } from "react"
 import { View, Text, StyleSheet, Pressable } from "react-native"
-import { useRouter } from "expo-router"
+import { useRouter, useFocusEffect } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated"
 import { colors, spacing, radius, typography, shadows } from "../lib/theme"
+import { getActiveRoom, clearActiveRoom, getVoterId, type ActiveRoom } from "../lib/storage"
+import { getRoom } from "../lib/api"
 
 export default function HomeScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null)
+
+  useFocusEffect(
+    useCallback(() => {
+      const checkActiveRoom = async () => {
+        const room = await getActiveRoom()
+        if (!room) {
+          setActiveRoom(null)
+          return
+        }
+
+        try {
+          const voterId = await getVoterId()
+          const data = await getRoom(room.code, voterId)
+          // Room still exists — show the banner
+          setActiveRoom({ ...room, topic: data.topic })
+        } catch {
+          // Room expired or gone
+          await clearActiveRoom()
+          setActiveRoom(null)
+        }
+      }
+      checkActiveRoom()
+    }, [])
+  )
+
+  const handleRejoin = async () => {
+    if (!activeRoom) return
+    try {
+      const voterId = await getVoterId()
+      const data = await getRoom(activeRoom.code, voterId)
+
+      if (data.status === "open") {
+        if (activeRoom.isCreator) {
+          router.push({
+            pathname: "/create/share",
+            params: { code: activeRoom.code, name: activeRoom.name },
+          })
+        } else {
+          router.push({
+            pathname: `/room/${activeRoom.code}/lobby`,
+            params: { name: activeRoom.name },
+          })
+        }
+      } else if (data.status === "voting") {
+        router.push({
+          pathname: `/room/${activeRoom.code}/swipe`,
+          params: { name: activeRoom.name },
+        })
+      } else {
+        router.push({
+          pathname: `/room/${activeRoom.code}/results`,
+          params: { name: activeRoom.name },
+        })
+      }
+    } catch {
+      await clearActiveRoom()
+      setActiveRoom(null)
+    }
+  }
+
+  const handleDismiss = async () => {
+    await clearActiveRoom()
+    setActiveRoom(null)
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
@@ -32,6 +100,41 @@ export default function HomeScreen() {
       >
         Swipe to decide, together.
       </Animated.Text>
+
+      {/* Rejoin banner */}
+      {activeRoom && (
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(200).springify()}
+          style={styles.rejoinCard}
+        >
+          <Pressable
+            style={({ pressed }) => [
+              styles.rejoinContent,
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={handleRejoin}
+          >
+            <View style={styles.rejoinDot} />
+            <View style={styles.rejoinInfo}>
+              <Text style={styles.rejoinTopic} numberOfLines={1}>
+                {activeRoom.topic}
+              </Text>
+              <Text style={styles.rejoinCode}>{activeRoom.code}</Text>
+            </View>
+            <Text style={styles.rejoinArrow}>→</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleDismiss}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.dismissButton,
+              pressed && { opacity: 0.5 },
+            ]}
+          >
+            <Text style={styles.dismissText}>x</Text>
+          </Pressable>
+        </Animated.View>
+      )}
 
       <Animated.View
         entering={FadeInDown.duration(500).delay(300).springify()}
@@ -116,8 +219,57 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.body,
     color: colors.slate,
-    marginBottom: spacing.xxxl + 16,
+    marginBottom: spacing.xxl,
     textAlign: "center",
+  },
+  rejoinCard: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.lg,
+    marginBottom: spacing.xl,
+    overflow: "hidden",
+    ...shadows.soft,
+  },
+  rejoinContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  rejoinDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.teal,
+  },
+  rejoinInfo: {
+    flex: 1,
+  },
+  rejoinTopic: {
+    ...typography.bodyBold,
+    color: colors.charcoal,
+  },
+  rejoinCode: {
+    ...typography.caption,
+    color: colors.coral,
+    letterSpacing: 1,
+  },
+  rejoinArrow: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.mist,
+  },
+  dismissButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  dismissText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.mist,
   },
   buttons: {
     width: "100%",
@@ -175,11 +327,5 @@ const styles = StyleSheet.create({
     color: colors.mist,
     position: "absolute",
     right: 20,
-  },
-  tagline: {
-    ...typography.caption,
-    color: colors.mist,
-    marginTop: spacing.xxxl,
-    textAlign: "center",
   },
 })

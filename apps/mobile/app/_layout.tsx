@@ -21,8 +21,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="create/index" options={{ title: "Create Room" }} />
-        <Stack.Screen name="create/items" options={{ title: "Add Items" }} />
-        <Stack.Screen name="create/share" options={{ title: "Share Room" }} />
+        <Stack.Screen name="create/share" options={{ title: "Build & Share", headerBackVisible: false }} />
         <Stack.Screen name="join/index" options={{ title: "Join Room" }} />
         <Stack.Screen name="join/name" options={{ title: "Your Name" }} />
         <Stack.Screen name="room/[code]/lobby" options={{ title: "Waiting", headerBackVisible: false }} />

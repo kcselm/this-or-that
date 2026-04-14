@@ -11,6 +11,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { getResults, type ResultsResponse } from "../../../lib/api";
+import { clearActiveRoom } from "../../../lib/storage";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 type RevealedResults = Extract<ResultsResponse, { revealed: true }>;
@@ -47,6 +48,7 @@ export default function ResultsScreen() {
 
   useEffect(() => {
     loadResults();
+    clearActiveRoom();
   }, [code]);
 
   if (loading) {

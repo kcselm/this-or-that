@@ -3,7 +3,8 @@ export type Room = {
   code: string;
   topic: string;
   creator_voter_id: string;
-  status: "open" | "voting" | "revealed";
+  status: "open" | "voting" | "revealed" | "closed";
+  allow_suggestions: number;
   created_at: string;
   expires_at: string;
 };
@@ -13,6 +14,8 @@ export type Item = {
   room_id: string;
   title: string;
   sort_order: number;
+  added_by_voter_id: string | null;
+  added_by_name: string | null;
   created_at: string;
 };
 

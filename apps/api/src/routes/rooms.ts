@@ -37,14 +37,15 @@ rooms.post("/", async (c) => {
     if (!existing) break;
   }
 
+  const allowSuggestions = body.allowSuggestions ? 1 : 0;
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
   await db
     .prepare(
-      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, created_at, expires_at) VALUES (?, ?, ?, ?, 'open', ?, ?)"
+      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, allow_suggestions, created_at, expires_at) VALUES (?, ?, ?, ?, 'open', ?, ?, ?)"
     )
-    .bind(id, code!, topic.trim(), creatorVoterId, now, expiresAt)
+    .bind(id, code!, topic.trim(), creatorVoterId, allowSuggestions, now, expiresAt)
     .run();
 
   // Auto-join the creator as a participant
@@ -60,47 +61,78 @@ rooms.post("/", async (c) => {
 });
 
 // POST /api/rooms/:code/items — Add items to a room
+// Supports creator batch add (items[]) and single-item add (item) for both creator and participants
 rooms.post("/:code/items", async (c) => {
   const code = c.req.param("code").toUpperCase();
   const body = await c.req.json();
-  const { items, creatorVoterId } = body;
+  const { creatorVoterId, voterId, voterName } = body;
 
-  if (!creatorVoterId || typeof creatorVoterId !== "string") {
-    return validationError("Creator voter ID is required");
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+  if (room.status !== "open") return invalidStatus("Items can only be added while the room is open");
+
+  const isCreator = creatorVoterId && creatorVoterId === room.creator_voter_id;
+
+  // Determine item list from either `items` (batch) or `item` (single)
+  let itemTitles: string[];
+  if (body.item && typeof body.item === "string") {
+    itemTitles = [body.item];
+  } else if (Array.isArray(body.items)) {
+    itemTitles = body.items;
+  } else {
+    return validationError("Either 'item' (string) or 'items' (array) is required");
   }
-  if (!Array.isArray(items) || items.length < 1 || items.length > 15) {
-    return validationError("Items must be an array of 1-15 strings");
+
+  if (itemTitles.length < 1 || itemTitles.length > 15) {
+    return validationError("Must provide 1-15 items");
   }
-  for (const item of items) {
+  for (const item of itemTitles) {
     if (typeof item !== "string" || item.trim().length < 1 || item.trim().length > 100) {
       return validationError("Each item must be a string of 1-100 characters");
     }
   }
 
-  const db = c.env.DB;
-  const room = await getRoomByCode(db, code);
-  if (!room) return notFound();
-  if (room.creator_voter_id !== creatorVoterId) return notCreator();
-  if (room.status !== "open") return invalidStatus("Items can only be added while the room is open");
+  if (!isCreator) {
+    // Participant adding — check suggestions are enabled and user is a participant
+    if (!voterId || typeof voterId !== "string") {
+      return validationError("voterId is required for participant item adds");
+    }
+    if (!voterName || typeof voterName !== "string") {
+      return validationError("voterName is required for participant item adds");
+    }
+    if (!room.allow_suggestions) {
+      return invalidStatus("The host has not enabled item suggestions for this room");
+    }
+    const participant = await db
+      .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
+      .bind(room.id, voterId)
+      .first();
+    if (!participant) {
+      return validationError("You must join the room before adding items");
+    }
+  }
 
   const currentCount = await getItemCount(db, room.id);
-  if (currentCount + items.length > 15) {
-    return validationError(`Adding ${items.length} items would exceed the limit of 15 (currently ${currentCount})`);
+  if (currentCount + itemTitles.length > 15) {
+    return validationError(`Adding ${itemTitles.length} item(s) would exceed the limit of 15 (currently ${currentCount})`);
   }
 
   const newItems = [];
-  for (let i = 0; i < items.length; i++) {
+  for (let i = 0; i < itemTitles.length; i++) {
     const itemId = crypto.randomUUID();
     const sortOrder = currentCount + i;
+    const addedByVoterId = isCreator ? null : voterId;
+    const addedByName = isCreator ? null : voterName;
     await db
-      .prepare("INSERT INTO items (id, room_id, title, sort_order) VALUES (?, ?, ?, ?)")
-      .bind(itemId, room.id, items[i].trim(), sortOrder)
+      .prepare("INSERT INTO items (id, room_id, title, sort_order, added_by_voter_id, added_by_name) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(itemId, room.id, itemTitles[i].trim(), sortOrder, addedByVoterId, addedByName)
       .run();
-    newItems.push({ id: itemId, title: items[i].trim(), sortOrder });
+    newItems.push({ id: itemId, title: itemTitles[i].trim(), sortOrder });
   }
 
   return Response.json(
-    { items: newItems, totalItems: currentCount + items.length },
+    { items: newItems, totalItems: currentCount + itemTitles.length },
     { status: 201 }
   );
 });
@@ -171,11 +203,19 @@ rooms.get("/:code", async (c) => {
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
 
-  // In open status, only the creator sees items
-  let items: { id: string; title: string }[] = [];
-  if (room.status !== "open" || (voterId && voterId === room.creator_voter_id)) {
+  const isCreator = voterId && voterId === room.creator_voter_id;
+
+  // In open status: creator always sees items; participants see items only if suggestions enabled
+  let items: { id: string; title: string; addedBy: { voterId: string; name: string } | null }[] = [];
+  if (room.status !== "open" || isCreator || room.allow_suggestions) {
     const allItems = await getItemsByRoomId(db, room.id);
-    items = allItems.map((item) => ({ id: item.id, title: item.title }));
+    items = allItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      addedBy: item.added_by_voter_id
+        ? { voterId: item.added_by_voter_id, name: item.added_by_name! }
+        : null,
+    }));
   }
 
   const response: Record<string, unknown> = {
@@ -183,6 +223,7 @@ rooms.get("/:code", async (c) => {
     code: room.code,
     topic: room.topic,
     status: room.status,
+    allowSuggestions: !!room.allow_suggestions,
     items,
   };
 
@@ -215,13 +256,18 @@ rooms.post("/:code/join", async (c) => {
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
 
-  // Upsert: ignore if already joined
+  // Upsert: insert or update name if already joined
   const existing = await db
     .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
     .bind(room.id, voterId)
     .first();
 
-  if (!existing) {
+  if (existing) {
+    await db
+      .prepare("UPDATE participants SET voter_name = ? WHERE room_id = ? AND voter_id = ?")
+      .bind(voterName.trim(), room.id, voterId)
+      .run();
+  } else {
     await db
       .prepare("INSERT INTO participants (id, room_id, voter_id, voter_name) VALUES (?, ?, ?, ?)")
       .bind(crypto.randomUUID(), room.id, voterId, voterName.trim())
@@ -251,4 +297,55 @@ rooms.get("/:code/participants", async (c) => {
       isCreator: r.voter_id === room.creator_voter_id,
     })),
   });
+});
+
+// PATCH /api/rooms/:code/settings — Update room settings (creator only)
+rooms.patch("/:code/settings", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const body = await c.req.json();
+  const { creatorVoterId, allowSuggestions } = body;
+
+  if (!creatorVoterId || typeof creatorVoterId !== "string") {
+    return validationError("Creator voter ID is required");
+  }
+  if (typeof allowSuggestions !== "boolean") {
+    return validationError("allowSuggestions must be a boolean");
+  }
+
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+  if (room.creator_voter_id !== creatorVoterId) return notCreator();
+  if (room.status !== "open") return invalidStatus("Settings can only be changed while the room is open");
+
+  await db
+    .prepare("UPDATE rooms SET allow_suggestions = ? WHERE id = ?")
+    .bind(allowSuggestions ? 1 : 0, room.id)
+    .run();
+
+  return Response.json({ success: true, allowSuggestions });
+});
+
+// POST /api/rooms/:code/close — Close a room (creator only)
+rooms.post("/:code/close", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const body = await c.req.json();
+  const { creatorVoterId } = body;
+
+  if (!creatorVoterId || typeof creatorVoterId !== "string") {
+    return validationError("Creator voter ID is required");
+  }
+
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+  if (room.creator_voter_id !== creatorVoterId) return notCreator();
+  if (room.status === "closed") return invalidStatus("Room is already closed");
+
+  await db
+    .prepare("UPDATE rooms SET status = 'closed' WHERE id = ?")
+    .bind(room.id)
+    .run();
+
+  return Response.json({ success: true, status: "closed" });
 });
