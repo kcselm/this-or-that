@@ -1,8 +1,31 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import Animated, { FadeInDown, FadeInUp, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { getRoom, getParticipants, ApiError, type Participant } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
+import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
+
+function PulsingDot() {
+  const opacity = useSharedValue(1);
+
+  opacity.value = withRepeat(withTiming(0.3, { duration: 1000 }), -1, true);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return <Animated.View style={[dotStyles.dot, style]} />;
+}
+
+const dotStyles = StyleSheet.create({
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.coral,
+  },
+});
 
 export default function LobbyScreen() {
   const router = useRouter();
@@ -31,7 +54,6 @@ export default function LobbyScreen() {
           return;
         }
 
-        // Fetch participant list
         const data = await getParticipants(code);
         setParticipants(data.participants);
       } catch (e) {
@@ -51,35 +73,53 @@ export default function LobbyScreen() {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#6C47FF" />
-      <Text style={styles.heading}>Waiting for host</Text>
-      <Text style={styles.subheading}>
-        The host is still setting up the room. Voting will start soon...
-      </Text>
+      <View style={styles.topSection}>
+        <Animated.View entering={FadeInUp.duration(400)} style={styles.statusRow}>
+          <PulsingDot />
+          <Text style={styles.statusText}>Waiting for host</Text>
+        </Animated.View>
+        <Animated.Text entering={FadeInUp.duration(400).delay(100)} style={styles.subheading}>
+          The host is still setting up. Voting will start soon...
+        </Animated.Text>
+      </View>
 
       {participants.length > 0 && (
-        <View style={styles.participantSection}>
+        <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.participantSection}>
           <Text style={styles.participantHeading}>
-            In the room ({participants.length})
+            IN THE ROOM ({participants.length})
           </Text>
           <View style={styles.participantList}>
             {participants.map((p) => (
               <View key={p.voterId} style={styles.participantRow}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {p.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
                 <Text style={styles.participantName}>{p.name}</Text>
-                {p.isCreator && <Text style={styles.hostBadge}>Host</Text>}
+                {p.isCreator && (
+                  <View style={styles.hostBadge}>
+                    <Text style={styles.hostBadgeText}>HOST</Text>
+                  </View>
+                )}
               </View>
             ))}
           </View>
-        </View>
+        </Animated.View>
       )}
 
-      <View style={styles.codeBox}>
-        <Text style={styles.codeLabel}>Room Code</Text>
-        <Text style={styles.code}>{code}</Text>
+      <View style={styles.bottomSection}>
+        <View style={styles.codeCard}>
+          <Text style={styles.codeLabel}>ROOM CODE</Text>
+          <Text style={styles.code}>{code}</Text>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.leaveText}>Leave Room</Text>
+        </Pressable>
       </View>
-      <Pressable style={styles.homeLink} onPress={() => router.replace("/")}>
-        <Text style={styles.homeLinkText}>Leave Room</Text>
-      </Pressable>
     </View>
   );
 }
@@ -87,82 +127,111 @@ export default function LobbyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#fff",
+    padding: spacing.xl,
+    backgroundColor: colors.cream,
   },
-  heading: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 24,
+  topSection: {
+    alignItems: "center",
+    marginTop: spacing.xxxl,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  statusText: {
+    ...typography.h2,
+    color: colors.charcoal,
   },
   subheading: {
-    fontSize: 16,
-    color: "#666",
+    ...typography.body,
+    color: colors.slate,
     textAlign: "center",
-    marginTop: 8,
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   participantSection: {
-    width: "100%",
-    marginBottom: 24,
+    flex: 1,
   },
   participantHeading: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#999",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    ...typography.tiny,
+    color: colors.mist,
+    marginBottom: spacing.md,
   },
   participantList: {
-    gap: 8,
+    gap: spacing.sm,
   },
   participantRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#f5f3ff",
-    padding: 14,
-    borderRadius: 10,
+    backgroundColor: colors.warmWhite,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    gap: spacing.md,
+    ...shadows.soft,
+  },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.tealLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.teal,
   },
   participantName: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
+    ...typography.bodyBold,
+    color: colors.charcoal,
+    flex: 1,
   },
   hostBadge: {
-    fontSize: 12,
-    color: "#6C47FF",
-    fontWeight: "700",
-    backgroundColor: "#ede9fe",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    overflow: "hidden",
+    backgroundColor: colors.amberLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
   },
-  codeBox: {
+  hostBadgeText: {
+    ...typography.tiny,
+    color: colors.amber,
+    fontSize: 10,
+  },
+  bottomSection: {
     alignItems: "center",
+    marginTop: "auto",
+  },
+  codeCard: {
+    backgroundColor: colors.warmWhite,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    ...shadows.soft,
   },
   codeLabel: {
-    fontSize: 14,
-    color: "#999",
-    marginBottom: 4,
+    ...typography.tiny,
+    color: colors.mist,
+    marginBottom: spacing.xs,
   },
   code: {
     fontSize: 28,
-    fontWeight: "bold",
-    color: "#6C47FF",
+    fontWeight: "800",
+    color: colors.coral,
     letterSpacing: 4,
   },
-  homeLink: {
-    marginTop: 32,
-    paddingVertical: 8,
+  leaveButton: {
+    marginTop: spacing.xl,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
-  homeLinkText: {
-    color: "#999",
-    fontSize: 16,
+  leaveButtonPressed: {
+    opacity: 0.6,
+  },
+  leaveText: {
+    ...typography.body,
+    color: colors.mist,
   },
 });

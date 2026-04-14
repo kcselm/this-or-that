@@ -12,6 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { getRoom } from "../../lib/api";
+import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function JoinScreen() {
   const router = useRouter();
@@ -44,31 +45,40 @@ export default function JoinScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.heading}>Enter room code</Text>
-      <Text style={styles.subheading}>
-        Ask the room creator for their 6-character code
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="ABC123"
-        value={code}
-        onChangeText={(text) => setCode(text.toUpperCase())}
-        maxLength={6}
-        autoCapitalize="characters"
-        autoFocus
-        textAlign="center"
-      />
-
-      <Pressable
-        style={[styles.button, (code.trim().length !== 6 || loading) && styles.buttonDisabled]}
-        onPress={handleJoin}
-        disabled={code.trim().length !== 6 || loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Joining..." : "Join"}
+      <View style={styles.content}>
+        <Text style={styles.heading}>Enter room code</Text>
+        <Text style={styles.subheading}>
+          Ask the room creator for their 6-character code
         </Text>
-      </Pressable>
+
+        <View style={styles.inputCard}>
+          <TextInput
+            style={styles.input}
+            placeholder="ABC123"
+            placeholderTextColor={colors.sand}
+            value={code}
+            onChangeText={(text) => setCode(text.toUpperCase())}
+            maxLength={6}
+            autoCapitalize="characters"
+            autoFocus
+            textAlign="center"
+          />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            (code.trim().length !== 6 || loading) && styles.buttonDisabled,
+            pressed && code.trim().length === 6 && !loading && styles.buttonPressed,
+          ]}
+          onPress={handleJoin}
+          disabled={code.trim().length !== 6 || loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Joining..." : "Join"}
+          </Text>
+        </Pressable>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -76,47 +86,57 @@ export default function JoinScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: "#fff",
+    backgroundColor: colors.cream,
+  },
+  content: {
+    flex: 1,
+    padding: spacing.xl,
     justifyContent: "center",
   },
   heading: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
+    ...typography.h1,
+    color: colors.charcoal,
     textAlign: "center",
   },
   subheading: {
-    fontSize: 16,
-    color: "#666",
+    ...typography.body,
+    color: colors.slate,
     textAlign: "center",
-    marginTop: 8,
-    marginBottom: 32,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xxl,
+  },
+  inputCard: {
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    ...shadows.card,
   },
   input: {
-    borderWidth: 2,
-    borderColor: "#6C47FF",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 32,
+    fontWeight: "800",
     letterSpacing: 8,
-    backgroundColor: "#f5f3ff",
-    color: "#6C47FF",
+    color: colors.coral,
+    padding: spacing.lg,
   },
   button: {
-    backgroundColor: "#6C47FF",
+    backgroundColor: colors.coral,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: spacing.xl,
+    ...shadows.button,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  buttonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
   },
   buttonText: {
-    color: "#fff",
+    color: colors.warmWhite,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

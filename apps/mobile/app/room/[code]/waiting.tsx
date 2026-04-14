@@ -1,8 +1,43 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { getStatus, revealResults, ApiError, type StatusResponse } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
+import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
+
+function PulsingRing() {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0.6);
+
+  scale.value = withRepeat(withTiming(1.3, { duration: 1200 }), -1, true);
+  opacity.value = withRepeat(withTiming(0, { duration: 1200 }), -1, true);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return <Animated.View style={[ringStyles.ring, style]} />;
+}
+
+const ringStyles = StyleSheet.create({
+  ring: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: colors.coral,
+  },
+});
 
 export default function WaitingScreen() {
   const router = useRouter();
@@ -43,56 +78,90 @@ export default function WaitingScreen() {
     return () => clearInterval(intervalRef.current);
   }, [code, name, router]);
 
+  const completedCount = status?.completedCount ?? 0;
+  const totalVoters = status?.totalVoters ?? 0;
+  const progressPercent = totalVoters > 0 ? (completedCount / totalVoters) * 100 : 0;
+
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#6C47FF" />
-      <Text style={styles.heading}>Waiting for others</Text>
+      <View style={styles.topSection}>
+        <View style={styles.pulseContainer}>
+          <PulsingRing />
+          <View style={styles.countCircle}>
+            <Text style={styles.countNumber}>{completedCount}</Text>
+            <Text style={styles.countOf}>of {totalVoters}</Text>
+          </View>
+        </View>
 
-      {status && (
-        <>
-          <Text style={styles.count}>
-            {status.completedCount} of {status.totalVoters} done
-          </Text>
+        <Animated.Text entering={FadeInUp.duration(400)} style={styles.heading}>
+          Waiting for others
+        </Animated.Text>
 
-          <View style={styles.voterList}>
-            {status.voters.map((voter, i) => (
-              <View key={i} style={styles.voterRow}>
-                <Text style={styles.voterName}>{voter.name}</Text>
-                <Text style={voter.completed ? styles.done : styles.pending}>
+        {status && (
+          <View style={styles.progressBar}>
+            <Animated.View
+              style={[styles.progressFill, { width: `${progressPercent}%` }]}
+            />
+          </View>
+        )}
+      </View>
+
+      {status && status.voters.length > 0 && (
+        <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.voterList}>
+          {status.voters.map((voter, i) => (
+            <View key={i} style={styles.voterRow}>
+              <View style={[styles.avatar, voter.completed && styles.avatarDone]}>
+                <Text style={[styles.avatarText, voter.completed && styles.avatarTextDone]}>
+                  {voter.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.voterName}>{voter.name}</Text>
+              <View style={[styles.statusBadge, voter.completed ? styles.doneBadge : styles.pendingBadge]}>
+                <Text style={[styles.statusText, voter.completed ? styles.doneText : styles.pendingText]}>
                   {voter.completed ? "Done" : "Swiping..."}
                 </Text>
               </View>
-            ))}
-          </View>
-        </>
+            </View>
+          ))}
+        </Animated.View>
       )}
-      {isCreator && status && status.completedCount > 0 && (
+
+      <View style={styles.bottomSection}>
+        {isCreator && status && status.completedCount > 0 && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.revealButton,
+              revealing && styles.buttonDisabled,
+              pressed && !revealing && styles.revealButtonPressed,
+            ]}
+            onPress={async () => {
+              setRevealing(true);
+              try {
+                const voterId = await getVoterId();
+                await revealResults(code, voterId);
+                router.replace({
+                  pathname: `/room/${code}/results`,
+                  params: { name },
+                });
+              } catch (e: any) {
+                Alert.alert("Error", e.message);
+                setRevealing(false);
+              }
+            }}
+            disabled={revealing}
+          >
+            <Text style={styles.revealButtonText}>
+              {revealing ? "Revealing..." : "Reveal Results"}
+            </Text>
+          </Pressable>
+        )}
         <Pressable
-          style={[styles.revealButton, revealing && styles.buttonDisabled]}
-          onPress={async () => {
-            setRevealing(true);
-            try {
-              const voterId = await getVoterId();
-              await revealResults(code, voterId);
-              router.replace({
-                pathname: `/room/${code}/results`,
-                params: { name },
-              });
-            } catch (e: any) {
-              Alert.alert("Error", e.message);
-              setRevealing(false);
-            }
-          }}
-          disabled={revealing}
+          style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]}
+          onPress={() => router.replace("/")}
         >
-          <Text style={styles.revealButtonText}>
-            {revealing ? "Revealing..." : "Reveal Results"}
-          </Text>
+          <Text style={styles.leaveText}>Leave Room</Text>
         </Pressable>
-      )}
-      <Pressable style={styles.homeLink} onPress={() => router.replace("/")}>
-        <Text style={styles.homeLinkText}>Leave Room</Text>
-      </Pressable>
+      </View>
     </View>
   );
 }
@@ -100,72 +169,150 @@ export default function WaitingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
+    padding: spacing.xl,
+    backgroundColor: colors.cream,
+  },
+  topSection: {
     alignItems: "center",
-    padding: 24,
-    backgroundColor: "#fff",
+    marginTop: spacing.xxxl,
+  },
+  pulseContainer: {
+    width: 80,
+    height: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xl,
+  },
+  countCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.coralLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countNumber: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.coral,
+    lineHeight: 28,
+  },
+  countOf: {
+    ...typography.tiny,
+    color: colors.coral,
+    fontSize: 10,
   },
   heading: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 24,
-    marginBottom: 8,
+    ...typography.h2,
+    color: colors.charcoal,
+    marginBottom: spacing.lg,
   },
-  count: {
-    fontSize: 18,
-    color: "#6C47FF",
-    fontWeight: "600",
-    marginBottom: 24,
+  progressBar: {
+    width: "100%",
+    height: 6,
+    backgroundColor: colors.sand,
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: spacing.xxl,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.coral,
+    borderRadius: 3,
   },
   voterList: {
-    width: "100%",
-    gap: 8,
+    flex: 1,
+    gap: spacing.sm,
   },
   voterRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#f5f3ff",
-    padding: 14,
-    borderRadius: 10,
+    backgroundColor: colors.warmWhite,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    gap: spacing.md,
+    ...shadows.soft,
+  },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.sandLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarDone: {
+    backgroundColor: colors.tealLight,
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.slate,
+  },
+  avatarTextDone: {
+    color: colors.teal,
   },
   voterName: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
+    ...typography.bodyBold,
+    color: colors.charcoal,
+    flex: 1,
   },
-  done: {
-    fontSize: 14,
-    color: "#48bb78",
-    fontWeight: "600",
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
   },
-  pending: {
-    fontSize: 14,
-    color: "#999",
+  doneBadge: {
+    backgroundColor: colors.tealLight,
+  },
+  pendingBadge: {
+    backgroundColor: colors.sandLight,
+  },
+  statusText: {
+    ...typography.tiny,
+    fontSize: 10,
+  },
+  doneText: {
+    color: colors.teal,
+  },
+  pendingText: {
+    color: colors.mist,
+  },
+  bottomSection: {
+    marginTop: "auto",
+    gap: spacing.md,
+    alignItems: "center",
   },
   revealButton: {
-    backgroundColor: "#6C47FF",
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+    width: "100%",
+    backgroundColor: colors.coral,
+    paddingVertical: 16,
+    borderRadius: radius.lg,
     alignItems: "center",
-    marginTop: 24,
+    ...shadows.button,
   },
   buttonDisabled: {
     opacity: 0.6,
+    shadowOpacity: 0,
+  },
+  revealButtonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
   },
   revealButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.warmWhite,
+    fontSize: 18,
+    fontWeight: "700",
   },
-  homeLink: {
-    marginTop: 32,
-    paddingVertical: 8,
+  leaveButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
-  homeLinkText: {
-    color: "#999",
-    fontSize: 16,
+  leaveButtonPressed: {
+    opacity: 0.6,
+  },
+  leaveText: {
+    ...typography.body,
+    color: colors.mist,
   },
 });

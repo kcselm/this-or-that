@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeIn } from "react-native-reanimated";
 import SwipeCard from "../../../components/SwipeCard";
 import { getVoterId } from "../../../lib/storage";
 import { getRoom, submitVote } from "../../../lib/api";
 import { seededShuffle } from "../../../lib/shuffle";
+import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 type Item = { id: string; title: string };
 
 export default function SwipeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { code, name, isCreator } = useLocalSearchParams<{
     code: string;
     name: string;
@@ -29,7 +33,6 @@ export default function SwipeScreen() {
       const room = await getRoom(code, voterId);
       const shuffled = seededShuffle(room.items, voterId);
 
-      // Resume: skip items already voted on
       const votedIds = new Set(Object.keys(room.myVotes ?? {}));
       const startIndex = shuffled.findIndex((item) => !votedIds.has(item.id));
 
@@ -62,7 +65,6 @@ export default function SwipeScreen() {
         });
 
         const nextIndex = currentIndex + 1;
-        // Small delay to let swipe animation finish
         setTimeout(() => {
           if (nextIndex >= items.length) {
             router.replace({
@@ -84,8 +86,8 @@ export default function SwipeScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={colors.coral} />
         <Text style={styles.loadingText}>Loading items...</Text>
       </View>
     );
@@ -93,9 +95,12 @@ export default function SwipeScreen() {
 
   if (error) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={loadRoom}>
+        <Pressable
+          style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+          onPress={loadRoom}
+        >
           <Text style={styles.retryText}>Try Again</Text>
         </Pressable>
       </View>
@@ -104,17 +109,27 @@ export default function SwipeScreen() {
 
   if (currentIndex >= items.length) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.doneText}>All done!</Text>
       </View>
     );
   }
 
+  const progress = ((currentIndex + 1) / items.length) * 100;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.progress}>
-        {currentIndex + 1} of {items.length}
-      </Text>
+    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
+      {/* Progress bar */}
+      <View style={styles.progressSection}>
+        <View style={styles.progressBar}>
+          <Animated.View
+            style={[styles.progressFill, { width: `${progress}%` }]}
+          />
+        </View>
+        <Text style={styles.progressText}>
+          {currentIndex + 1} of {items.length}
+        </Text>
+      </View>
 
       <View style={styles.cardContainer}>
         <SwipeCard
@@ -125,8 +140,14 @@ export default function SwipeScreen() {
       </View>
 
       <View style={styles.hints}>
-        <Text style={styles.hintNo}>Nah</Text>
-        <Text style={styles.hintYes}>Yes!</Text>
+        <View style={styles.hintBubble}>
+          <Text style={styles.hintArrow}>←</Text>
+          <Text style={styles.hintNo}>Nah</Text>
+        </View>
+        <View style={[styles.hintBubble, styles.hintBubbleYes]}>
+          <Text style={styles.hintYes}>Yes!</Text>
+          <Text style={styles.hintArrow}>→</Text>
+        </View>
       </View>
     </View>
   );
@@ -135,20 +156,36 @@ export default function SwipeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    padding: 24,
+    backgroundColor: colors.cream,
+    padding: spacing.xl,
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.cream,
+    padding: spacing.xl,
   },
-  progress: {
-    textAlign: "center",
-    fontSize: 16,
-    color: "#999",
-    marginBottom: 16,
+  progressSection: {
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  progressBar: {
+    width: "100%",
+    height: 6,
+    backgroundColor: colors.sand,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.coral,
+    borderRadius: 3,
+  },
+  progressText: {
+    ...typography.caption,
+    color: colors.mist,
   },
   cardContainer: {
     flex: 1,
@@ -158,44 +195,61 @@ const styles = StyleSheet.create({
   hints: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.lg,
+  },
+  hintBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.coralLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  hintBubbleYes: {
+    backgroundColor: colors.tealLight,
+  },
+  hintArrow: {
+    fontSize: 14,
+    color: colors.mist,
   },
   hintNo: {
-    fontSize: 18,
-    color: "#e53e3e",
-    fontWeight: "600",
+    ...typography.bodyBold,
+    color: colors.coral,
+    fontSize: 14,
   },
   hintYes: {
-    fontSize: 18,
-    color: "#48bb78",
-    fontWeight: "600",
+    ...typography.bodyBold,
+    color: colors.teal,
+    fontSize: 14,
   },
   doneText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#6C47FF",
+    ...typography.h1,
+    color: colors.coral,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#999",
+    ...typography.body,
+    color: colors.mist,
+    marginTop: spacing.md,
   },
   errorText: {
-    fontSize: 16,
-    color: "#e53e3e",
+    ...typography.body,
+    color: colors.error,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   retryButton: {
-    backgroundColor: "#6C47FF",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: colors.coral,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+  },
+  retryButtonPressed: {
+    backgroundColor: colors.coralDark,
   },
   retryText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.warmWhite,
+    ...typography.bodyBold,
   },
 });

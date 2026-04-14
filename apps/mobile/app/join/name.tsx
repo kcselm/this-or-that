@@ -12,6 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { getRoom, joinRoom } from "../../lib/api";
+import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function NameScreen() {
   const router = useRouter();
@@ -59,29 +60,43 @@ export default function NameScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.heading}>What's your name?</Text>
-      <Text style={styles.subheading}>
-        This is how others will see you in the room
-      </Text>
+      <View style={styles.content}>
+        <View style={styles.avatarPreview}>
+          <Text style={styles.avatarText}>
+            {name.trim() ? name.trim().charAt(0).toUpperCase() : "?"}
+          </Text>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Your name"
-        value={name}
-        onChangeText={setName}
-        maxLength={30}
-        autoFocus
-      />
-
-      <Pressable
-        style={[styles.button, (!name.trim() || loading) && styles.buttonDisabled]}
-        onPress={handleContinue}
-        disabled={!name.trim() || loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Loading..." : "Continue"}
+        <Text style={styles.heading}>What's your name?</Text>
+        <Text style={styles.subheading}>
+          This is how others will see you in the room
         </Text>
-      </Pressable>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Your name"
+          placeholderTextColor={colors.mist}
+          value={name}
+          onChangeText={setName}
+          maxLength={30}
+          autoFocus
+          textAlign="center"
+        />
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            (!name.trim() || loading) && styles.buttonDisabled,
+            pressed && name.trim() && !loading && styles.buttonPressed,
+          ]}
+          onPress={handleContinue}
+          disabled={!name.trim() || loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Loading..." : "Continue"}
+          </Text>
+        </Pressable>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -89,45 +104,71 @@ export default function NameScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: "#fff",
+    backgroundColor: colors.cream,
+  },
+  content: {
+    flex: 1,
+    padding: spacing.xl,
     justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarPreview: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.coralLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xl,
+  },
+  avatarText: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.coral,
   },
   heading: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
+    ...typography.h1,
+    color: colors.charcoal,
     textAlign: "center",
   },
   subheading: {
-    fontSize: 16,
-    color: "#666",
+    ...typography.body,
+    color: colors.slate,
     textAlign: "center",
-    marginTop: 8,
-    marginBottom: 32,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xxl,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
+    width: "100%",
+    borderWidth: 2,
+    borderColor: colors.sand,
+    borderRadius: radius.md,
     padding: 14,
     fontSize: 18,
-    backgroundColor: "#fafafa",
-    textAlign: "center",
+    backgroundColor: colors.warmWhite,
+    color: colors.charcoal,
+    fontWeight: "600",
   },
   button: {
-    backgroundColor: "#6C47FF",
+    width: "100%",
+    backgroundColor: colors.coral,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: spacing.xl,
+    ...shadows.button,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  buttonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
   },
   buttonText: {
-    color: "#fff",
+    color: colors.warmWhite,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

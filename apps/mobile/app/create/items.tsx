@@ -13,6 +13,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { addItems } from "../../lib/api";
+import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function AddItemsScreen() {
   const router = useRouter();
@@ -60,25 +61,43 @@ export default function AddItemsScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.heading}>Add your options</Text>
-      <Text style={styles.subheading}>{items.length}/15 items</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.heading}>Add your options</Text>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{items.length}/15</Text>
+        </View>
+      </View>
 
       <FlatList
         data={items}
         keyExtractor={(_, i) => i.toString()}
         style={styles.list}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item, index }) => (
           <View style={styles.itemRow}>
+            <View style={styles.itemNumber}>
+              <Text style={styles.itemNumberText}>{index + 1}</Text>
+            </View>
             <Text style={styles.itemText} numberOfLines={1}>
               {item}
             </Text>
-            <Pressable onPress={() => handleRemove(index)} hitSlop={8}>
-              <Text style={styles.removeText}>X</Text>
+            <Pressable
+              onPress={() => handleRemove(index)}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.removeButton,
+                pressed && styles.removeButtonPressed,
+              ]}
+            >
+              <Text style={styles.removeText}>×</Text>
             </Pressable>
           </View>
         )}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No items yet. Add some below.</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>📝</Text>
+            <Text style={styles.emptyText}>Add some options to vote on</Text>
+          </View>
         }
       />
 
@@ -87,6 +106,7 @@ export default function AddItemsScreen() {
           ref={inputRef}
           style={styles.input}
           placeholder="Type an option..."
+          placeholderTextColor={colors.mist}
           value={currentItem}
           onChangeText={setCurrentItem}
           onSubmitEditing={handleAdd}
@@ -94,13 +114,23 @@ export default function AddItemsScreen() {
           returnKeyType="done"
           maxLength={100}
         />
-        <Pressable style={styles.addButton} onPress={() => { handleAdd(); inputRef.current?.focus(); }}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.addButton,
+            pressed && styles.addButtonPressed,
+          ]}
+          onPress={() => { handleAdd(); inputRef.current?.focus(); }}
+        >
           <Text style={styles.addButtonText}>+</Text>
         </Pressable>
       </View>
 
       <Pressable
-        style={[styles.nextButton, (items.length < 2 || loading) && styles.buttonDisabled]}
+        style={({ pressed }) => [
+          styles.nextButton,
+          (items.length < 2 || loading) && styles.buttonDisabled,
+          pressed && items.length >= 2 && !loading && styles.nextButtonPressed,
+        ]}
         onPress={handleNext}
         disabled={items.length < 2 || loading}
       >
@@ -115,87 +145,142 @@ export default function AddItemsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: "#fff",
+    padding: spacing.xl,
+    backgroundColor: colors.cream,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
   },
   heading: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#333",
+    ...typography.h2,
+    color: colors.charcoal,
   },
-  subheading: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 4,
-    marginBottom: 16,
+  countBadge: {
+    backgroundColor: colors.coralLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+  },
+  countText: {
+    ...typography.caption,
+    color: colors.coral,
+    fontWeight: "700",
   },
   list: {
     flex: 1,
   },
+  listContent: {
+    gap: spacing.sm,
+  },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f5f3ff",
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 8,
+    backgroundColor: colors.warmWhite,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    gap: spacing.md,
+    ...shadows.soft,
   },
-  itemText: {
-    fontSize: 16,
-    color: "#333",
-    flex: 1,
-    marginRight: 12,
-  },
-  removeText: {
-    fontSize: 16,
-    color: "#e53e3e",
-    fontWeight: "bold",
-  },
-  emptyText: {
-    color: "#999",
-    textAlign: "center",
-    marginTop: 32,
-  },
-  inputRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    backgroundColor: "#fafafa",
-  },
-  addButton: {
-    backgroundColor: "#6C47FF",
-    width: 50,
-    borderRadius: 10,
+  itemNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.sandLight,
     alignItems: "center",
     justifyContent: "center",
   },
+  itemNumberText: {
+    ...typography.caption,
+    color: colors.slate,
+    fontWeight: "700",
+  },
+  itemText: {
+    ...typography.body,
+    color: colors.charcoal,
+    flex: 1,
+  },
+  removeButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.coralLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  removeButtonPressed: {
+    backgroundColor: colors.noBg,
+  },
+  removeText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.coral,
+    lineHeight: 20,
+  },
+  emptyState: {
+    alignItems: "center",
+    marginTop: spacing.xxxl,
+    gap: spacing.sm,
+  },
+  emptyEmoji: {
+    fontSize: 40,
+  },
+  emptyText: {
+    ...typography.body,
+    color: colors.mist,
+  },
+  inputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: colors.sand,
+    borderRadius: radius.md,
+    padding: 14,
+    fontSize: 16,
+    backgroundColor: colors.warmWhite,
+    color: colors.charcoal,
+  },
+  addButton: {
+    backgroundColor: colors.teal,
+    width: 52,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addButtonPressed: {
+    backgroundColor: colors.tealDark,
+    transform: [{ scale: 0.95 }],
+  },
   addButtonText: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
+    color: colors.warmWhite,
+    fontSize: 26,
+    fontWeight: "700",
   },
   nextButton: {
-    backgroundColor: "#6C47FF",
+    backgroundColor: colors.coral,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     alignItems: "center",
-    marginTop: 16,
+    marginTop: spacing.lg,
+    ...shadows.button,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+    shadowOpacity: 0,
+  },
+  nextButtonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
   },
   nextButtonText: {
-    color: "#fff",
+    color: colors.warmWhite,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

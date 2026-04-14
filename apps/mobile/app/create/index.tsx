@@ -12,6 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
+import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
@@ -50,27 +51,37 @@ export default function CreateRoomScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.label}>What are you deciding?</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Friday dinner"
-        value={topic}
-        onChangeText={setTopic}
-        maxLength={100}
-        autoFocus
-      />
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>What are you deciding?</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Friday dinner"
+          placeholderTextColor={colors.mist}
+          value={topic}
+          onChangeText={setTopic}
+          maxLength={100}
+          autoFocus
+        />
+      </View>
 
-      <Text style={styles.label}>Your display name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Alex"
-        value={name}
-        onChangeText={setName}
-        maxLength={30}
-      />
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Your display name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Alex"
+          placeholderTextColor={colors.mist}
+          value={name}
+          onChangeText={setName}
+          maxLength={30}
+        />
+      </View>
 
       <Pressable
-        style={[styles.button, loading && styles.buttonDisabled]}
+        style={({ pressed }) => [
+          styles.button,
+          loading && styles.buttonDisabled,
+          pressed && !loading && styles.buttonPressed,
+        ]}
         onPress={handleCreate}
         disabled={loading}
       >
@@ -85,37 +96,44 @@ export default function CreateRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: "#fff",
+    padding: spacing.xl,
+    backgroundColor: colors.cream,
+  },
+  fieldGroup: {
+    marginBottom: spacing.xl,
   },
   label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-    marginTop: 16,
+    ...typography.bodyBold,
+    color: colors.charcoal,
+    marginBottom: spacing.sm,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.sand,
+    borderRadius: radius.md,
     padding: 14,
     fontSize: 16,
-    backgroundColor: "#fafafa",
+    backgroundColor: colors.warmWhite,
+    color: colors.charcoal,
   },
   button: {
-    backgroundColor: "#6C47FF",
+    backgroundColor: colors.coral,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     alignItems: "center",
-    marginTop: 32,
+    marginTop: spacing.lg,
+    ...shadows.button,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
+  buttonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
+  },
   buttonText: {
-    color: "#fff",
+    color: colors.warmWhite,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

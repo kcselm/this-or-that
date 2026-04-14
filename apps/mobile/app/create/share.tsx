@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Alert, Share } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { getVoterId } from "../../lib/storage";
 import { startVoting, getParticipants, type Participant } from "../../lib/api";
+import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function ShareScreen() {
   const router = useRouter();
@@ -58,53 +60,76 @@ export default function ShareScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Share this code</Text>
-      <Text style={styles.subheading}>
+      <Animated.Text entering={FadeInUp.duration(400)} style={styles.heading}>
+        Share this code
+      </Animated.Text>
+      <Animated.Text entering={FadeInUp.duration(400).delay(100)} style={styles.subheading}>
         Send it to your friends so they can join
-      </Text>
+      </Animated.Text>
 
-      <View style={styles.codeBox}>
+      <Animated.View entering={FadeInDown.duration(500).delay(200).springify()} style={styles.codeCard}>
+        <Text style={styles.codeLabel}>ROOM CODE</Text>
         <Text style={styles.code}>{code}</Text>
-      </View>
-
-      <View style={styles.actions}>
-        <Pressable style={styles.actionButton} onPress={handleCopy}>
-          <Text style={styles.actionText}>
-            {copied ? "Copied!" : "Copy Code"}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={handleShare}>
-          <Text style={styles.actionText}>Share</Text>
-        </Pressable>
-      </View>
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
+            onPress={handleCopy}
+          >
+            <Text style={styles.actionText}>
+              {copied ? "Copied!" : "Copy"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.actionButton, styles.shareButton, pressed && styles.shareButtonPressed]}
+            onPress={handleShare}
+          >
+            <Text style={[styles.actionText, styles.shareText]}>Share</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
 
       {participants.length > 0 && (
-        <View style={styles.participantSection}>
+        <Animated.View entering={FadeInDown.duration(400).delay(300)} style={styles.participantSection}>
           <Text style={styles.participantHeading}>
             In the room ({participants.length})
           </Text>
           {participants.map((p) => (
             <View key={p.voterId} style={styles.participantRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {p.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
               <Text style={styles.participantName}>{p.name}</Text>
-              {p.isCreator && <Text style={styles.hostBadge}>You</Text>}
+              {p.isCreator && (
+                <View style={styles.hostBadge}>
+                  <Text style={styles.hostBadgeText}>You</Text>
+                </View>
+              )}
             </View>
           ))}
-        </View>
+        </Animated.View>
       )}
 
-      <Pressable
-        style={[styles.startButton, loading && styles.buttonDisabled]}
-        onPress={handleStart}
-        disabled={loading}
-      >
-        <Text style={styles.startButtonText}>
-          {loading ? "Starting..." : "Start Voting"}
-        </Text>
-      </Pressable>
+      <View style={styles.bottomSection}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.startButton,
+            loading && styles.buttonDisabled,
+            pressed && !loading && styles.startButtonPressed,
+          ]}
+          onPress={handleStart}
+          disabled={loading}
+        >
+          <Text style={styles.startButtonText}>
+            {loading ? "Starting..." : "Start Voting"}
+          </Text>
+        </Pressable>
 
-      <Text style={styles.hint}>
-        You can start voting once everyone has joined.
-      </Text>
+        <Text style={styles.hint}>
+          Start when everyone has joined
+        </Text>
+      </View>
     </View>
   );
 }
@@ -112,109 +137,143 @@ export default function ShareScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
+    padding: spacing.xl,
+    backgroundColor: colors.cream,
   },
   heading: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
+    ...typography.h1,
+    color: colors.charcoal,
+    textAlign: "center",
   },
   subheading: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 8,
-    marginBottom: 32,
+    ...typography.body,
+    color: colors.slate,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xxl,
+    textAlign: "center",
   },
-  codeBox: {
-    backgroundColor: "#f5f3ff",
-    paddingHorizontal: 32,
-    paddingVertical: 20,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#6C47FF",
-    marginBottom: 24,
+  codeCard: {
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    marginBottom: spacing.xl,
+    ...shadows.card,
+  },
+  codeLabel: {
+    ...typography.tiny,
+    color: colors.mist,
+    marginBottom: spacing.sm,
   },
   code: {
-    fontSize: 40,
-    fontWeight: "bold",
-    color: "#6C47FF",
+    fontSize: 44,
+    fontWeight: "800",
+    color: colors.coral,
     letterSpacing: 8,
+    marginBottom: spacing.lg,
   },
   actions: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 40,
+    gap: spacing.sm,
   },
   actionButton: {
-    backgroundColor: "#f0ecff",
+    backgroundColor: colors.coralLight,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+  },
+  actionButtonPressed: {
+    backgroundColor: colors.noBg,
+    transform: [{ scale: 0.95 }],
   },
   actionText: {
-    color: "#6C47FF",
-    fontSize: 16,
-    fontWeight: "600",
+    ...typography.bodyBold,
+    color: colors.coral,
+  },
+  shareButton: {
+    backgroundColor: colors.tealLight,
+  },
+  shareButtonPressed: {
+    backgroundColor: colors.yesBg,
+    transform: [{ scale: 0.95 }],
+  },
+  shareText: {
+    color: colors.teal,
   },
   participantSection: {
-    width: "100%",
-    marginBottom: 24,
+    flex: 1,
+    marginBottom: spacing.lg,
   },
   participantHeading: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#999",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    ...typography.tiny,
+    color: colors.mist,
+    marginBottom: spacing.md,
   },
   participantRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#f5f3ff",
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 8,
+    backgroundColor: colors.warmWhite,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.coralLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.coral,
   },
   participantName: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
+    ...typography.bodyBold,
+    color: colors.charcoal,
+    flex: 1,
   },
   hostBadge: {
-    fontSize: 12,
-    color: "#6C47FF",
-    fontWeight: "700",
-    backgroundColor: "#ede9fe",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    overflow: "hidden",
+    backgroundColor: colors.amberLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  hostBadgeText: {
+    ...typography.tiny,
+    color: colors.amber,
+    fontSize: 10,
+  },
+  bottomSection: {
+    marginTop: "auto",
   },
   startButton: {
-    backgroundColor: "#6C47FF",
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 12,
-    width: "100%",
+    backgroundColor: colors.coral,
+    paddingVertical: 18,
+    borderRadius: radius.lg,
     alignItems: "center",
+    ...shadows.button,
   },
   buttonDisabled: {
     opacity: 0.6,
+    shadowOpacity: 0,
+  },
+  startButtonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
   },
   startButtonText: {
-    color: "#fff",
+    color: colors.warmWhite,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   hint: {
-    color: "#999",
-    fontSize: 14,
-    marginTop: 16,
+    ...typography.caption,
+    color: colors.mist,
+    marginTop: spacing.md,
     textAlign: "center",
   },
 });

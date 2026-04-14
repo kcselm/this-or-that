@@ -10,6 +10,7 @@ import Animated, {
   interpolateColor,
   Extrapolation,
 } from "react-native-reanimated";
+import { colors, radius, shadows } from "../lib/theme";
 
 type Props = {
   title: string;
@@ -36,8 +37,8 @@ export default function SwipeCard({ title, onSwipe }: Props) {
         translateX.value = withTiming(-width - 100, { duration: 200 });
         runOnJS(onSwipe)("no");
       } else {
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
+        translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+        translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
       }
     });
 
@@ -57,7 +58,12 @@ export default function SwipeCard({ title, onSwipe }: Props) {
     backgroundColor: interpolateColor(
       translateX.value,
       [-SWIPE_THRESHOLD * 2, 0, SWIPE_THRESHOLD * 2],
-      ["#fecaca", "#ffffff", "#bbf7d0"]
+      [colors.noBg, "#FFFFFF", colors.yesBg]
+    ),
+    borderColor: interpolateColor(
+      translateX.value,
+      [-SWIPE_THRESHOLD * 1.5, -SWIPE_THRESHOLD * 0.5, 0, SWIPE_THRESHOLD * 0.5, SWIPE_THRESHOLD * 1.5],
+      [colors.no, colors.sand, colors.sand, colors.sand, colors.yes]
     ),
   }));
 
@@ -68,6 +74,16 @@ export default function SwipeCard({ title, onSwipe }: Props) {
       [0, 1],
       Extrapolation.CLAMP
     ),
+    transform: [
+      {
+        scale: interpolate(
+          translateX.value,
+          [0, SWIPE_THRESHOLD],
+          [0.5, 1],
+          Extrapolation.CLAMP
+        ),
+      },
+    ],
   }));
 
   const noOpacity = useAnimatedStyle(() => ({
@@ -77,6 +93,16 @@ export default function SwipeCard({ title, onSwipe }: Props) {
       [1, 0],
       Extrapolation.CLAMP
     ),
+    transform: [
+      {
+        scale: interpolate(
+          translateX.value,
+          [-SWIPE_THRESHOLD, 0],
+          [1, 0.5],
+          Extrapolation.CLAMP
+        ),
+      },
+    ],
   }));
 
   return (
@@ -101,52 +127,52 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: "90%",
     aspectRatio: 0.85,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.xxl,
+    borderWidth: 2,
+    borderColor: colors.sand,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#eee",
+    ...shadows.card,
   },
   content: {
     padding: 24,
     alignItems: "center",
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.charcoal,
     textAlign: "center",
+    letterSpacing: -0.5,
   },
   label: {
     position: "absolute",
-    top: 24,
-    paddingHorizontal: 16,
+    top: 28,
+    paddingHorizontal: 18,
     paddingVertical: 8,
     borderWidth: 3,
-    borderRadius: 8,
+    borderRadius: radius.md,
   },
   yesLabel: {
-    left: 20,
-    borderColor: "#48bb78",
+    left: 22,
+    borderColor: colors.teal,
+    backgroundColor: colors.tealLight,
   },
   noLabel: {
-    right: 20,
-    borderColor: "#e53e3e",
+    right: 22,
+    borderColor: colors.coral,
+    backgroundColor: colors.coralLight,
   },
   labelText: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 2,
   },
   yesText: {
-    color: "#48bb78",
+    color: colors.teal,
   },
   noText: {
-    color: "#e53e3e",
+    color: colors.coral,
   },
 });

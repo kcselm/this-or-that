@@ -8,12 +8,22 @@ import {
   Pressable,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { getResults, type ResultsResponse } from "../../../lib/api";
+import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 type RevealedResults = Extract<ResultsResponse, { revealed: true }>;
 
+const MEDAL_COLORS = [
+  { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
+  { bg: "#F0F0F0", border: "#B0B0B0", text: "#808080" }, // silver
+  { bg: "#FFF0E8", border: "#D4956A", text: "#B07840" }, // bronze
+];
+
 export default function ResultsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { code } = useLocalSearchParams<{ code: string }>();
   const [data, setData] = useState<RevealedResults | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,8 +51,8 @@ export default function ResultsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={colors.coral} />
         <Text style={styles.loadingText}>Loading results...</Text>
       </View>
     );
@@ -50,61 +60,107 @@ export default function ResultsScreen() {
 
   if (error || !data) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
-        <Pressable style={styles.retryButton} onPress={loadResults}>
+        <Pressable
+          style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+          onPress={loadResults}
+        >
           <Text style={styles.retryText}>Try Again</Text>
         </Pressable>
-        <Pressable style={styles.homeLinkButton} onPress={() => router.replace("/")}>
+        <Pressable
+          style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
+          onPress={() => router.replace("/")}
+        >
           <Text style={styles.homeLinkText}>Back to Home</Text>
         </Pressable>
       </View>
     );
   }
 
+  const winner = data.results[0];
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.topic}>{data.topic}</Text>
-      <Text style={styles.meta}>{data.totalVoters} voters</Text>
+    <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
+      {/* Winner spotlight */}
+      <Animated.View entering={FadeInUp.duration(500).springify()} style={styles.winnerCard}>
+        <Text style={styles.winnerLabel}>TOP PICK</Text>
+        <Text style={styles.winnerTitle}>{winner?.title}</Text>
+        <View style={styles.winnerStats}>
+          <Text style={styles.winnerPercent}>{winner?.yesPercentage}%</Text>
+          <Text style={styles.winnerPercentLabel}>yes</Text>
+        </View>
+      </Animated.View>
+
+      <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.topic}>
+        {data.topic}
+      </Animated.Text>
+      <Animated.Text entering={FadeInDown.duration(400).delay(300)} style={styles.meta}>
+        {data.totalVoters} voters
+      </Animated.Text>
 
       <FlatList
         data={data.results}
         keyExtractor={(item) => item.itemId}
         contentContainerStyle={styles.list}
-        renderItem={({ item, index }) => (
-          <View style={styles.resultRow}>
-            <View style={styles.rankBadge}>
-              <Text style={styles.rankText}>#{index + 1}</Text>
-            </View>
-            <View style={styles.resultInfo}>
-              <Text style={styles.resultTitle}>{item.title}</Text>
-              <View style={styles.barContainer}>
-                <View
+        renderItem={({ item, index }) => {
+          const medal = index < 3 ? MEDAL_COLORS[index] : null;
+          const barColor =
+            item.yesPercentage >= 70
+              ? colors.teal
+              : item.yesPercentage >= 40
+              ? colors.amber
+              : colors.coral;
+
+          return (
+            <Animated.View
+              entering={FadeInDown.duration(400).delay(300 + index * 80)}
+              style={styles.resultRow}
+            >
+              <View
+                style={[
+                  styles.rankBadge,
+                  medal
+                    ? { backgroundColor: medal.bg, borderColor: medal.border, borderWidth: 2 }
+                    : { backgroundColor: colors.sandLight },
+                ]}
+              >
+                <Text
                   style={[
-                    styles.barFill,
-                    {
-                      width: `${item.yesPercentage}%`,
-                      backgroundColor:
-                        item.yesPercentage >= 70
-                          ? "#48bb78"
-                          : item.yesPercentage >= 40
-                          ? "#ecc94b"
-                          : "#e53e3e",
-                    },
+                    styles.rankText,
+                    medal ? { color: medal.text } : { color: colors.slate },
                   ]}
-                />
+                >
+                  {index + 1}
+                </Text>
               </View>
-              <Text style={styles.resultMeta}>
-                {item.yesPercentage}% yes ({item.yesCount} yes, {item.noCount} no)
-              </Text>
-            </View>
-          </View>
-        )}
+              <View style={styles.resultInfo}>
+                <Text style={styles.resultTitle}>{item.title}</Text>
+                <View style={styles.barContainer}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      { width: `${item.yesPercentage}%`, backgroundColor: barColor },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.resultMeta}>
+                  {item.yesPercentage}% yes · {item.yesCount} yes, {item.noCount} no
+                </Text>
+              </View>
+            </Animated.View>
+          );
+        }}
       />
 
-      <Pressable style={styles.homeButton} onPress={() => router.replace("/")}>
-        <Text style={styles.homeButtonText}>Back to Home</Text>
-      </Pressable>
+      <Animated.View entering={FadeInDown.duration(400).delay(600)}>
+        <Pressable
+          style={({ pressed }) => [styles.homeButton, pressed && styles.homeButtonPressed]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.homeButtonText}>Back to Home</Text>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
@@ -112,116 +168,161 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    padding: 24,
+    backgroundColor: colors.cream,
+    padding: spacing.xl,
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.cream,
+    padding: spacing.xl,
+  },
+  winnerCard: {
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.amber,
+    ...shadows.card,
+  },
+  winnerLabel: {
+    ...typography.tiny,
+    color: colors.amber,
+    marginBottom: spacing.sm,
+  },
+  winnerTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: colors.charcoal,
+    textAlign: "center",
+    letterSpacing: -0.5,
+    marginBottom: spacing.md,
+  },
+  winnerStats: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.xs,
+  },
+  winnerPercent: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: colors.teal,
+  },
+  winnerPercentLabel: {
+    ...typography.body,
+    color: colors.teal,
+    fontWeight: "600",
   },
   topic: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
+    ...typography.h3,
+    color: colors.charcoal,
     textAlign: "center",
   },
   meta: {
-    fontSize: 14,
-    color: "#999",
+    ...typography.caption,
+    color: colors.mist,
     textAlign: "center",
-    marginTop: 4,
-    marginBottom: 24,
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
   },
   list: {
-    gap: 12,
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
   },
   resultRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9f9f9",
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.md,
+    ...shadows.soft,
   },
   rankBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#6C47FF",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
   },
   rankText: {
-    color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "800",
     fontSize: 14,
   },
   resultInfo: {
     flex: 1,
   },
   resultTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 6,
+    ...typography.bodyBold,
+    color: colors.charcoal,
+    marginBottom: spacing.xs,
   },
   barContainer: {
     height: 8,
-    backgroundColor: "#eee",
+    backgroundColor: colors.sand,
     borderRadius: 4,
     overflow: "hidden",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   barFill: {
     height: "100%",
     borderRadius: 4,
   },
   resultMeta: {
+    ...typography.caption,
+    color: colors.mist,
     fontSize: 12,
-    color: "#999",
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#999",
+    ...typography.body,
+    color: colors.mist,
+    marginTop: spacing.md,
   },
   errorText: {
-    fontSize: 16,
-    color: "#e53e3e",
+    ...typography.body,
+    color: colors.error,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   retryButton: {
-    backgroundColor: "#6C47FF",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginBottom: 12,
+    backgroundColor: colors.coral,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+  },
+  retryButtonPressed: {
+    backgroundColor: colors.coralDark,
   },
   retryText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.warmWhite,
+    ...typography.bodyBold,
   },
-  homeLinkButton: {
-    paddingVertical: 8,
+  homeLink: {
+    paddingVertical: spacing.sm,
   },
   homeLinkText: {
-    color: "#6C47FF",
-    fontSize: 16,
+    ...typography.body,
+    color: colors.coral,
   },
   homeButton: {
-    backgroundColor: "#6C47FF",
+    backgroundColor: colors.coral,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     alignItems: "center",
-    marginTop: 16,
+    marginTop: spacing.sm,
+    ...shadows.button,
+  },
+  homeButtonPressed: {
+    backgroundColor: colors.coralDark,
+    transform: [{ scale: 0.98 }],
   },
   homeButtonText: {
-    color: "#fff",
+    color: colors.warmWhite,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
