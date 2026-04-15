@@ -14,7 +14,11 @@
       "Bash(npx expo:*)",
       "Bash(curl:*)",
       "Bash(pkill -f \"expo\")",
-      "Bash(pkill -f \"wrangler\")"
+      "Bash(pkill -f \"wrangler\")",
+      "Bash(rm /c/Users/kcsel/repo/this-or-that/App.js)",
+      "Bash(rm -rf /c/Users/kcsel/repo/this-or-that/app/)",
+      "Bash(rm /c/Users/kcsel/repo/this-or-that/tsconfig.json)",
+      "Bash(rm -rf /c/Users/kcsel/repo/this-or-that/.expo/)"
     ]
   }
 }

@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
 
 const VOTER_ID_KEY = "tot_voter_id";
 const ACTIVE_ROOM_KEY = "tot_active_room";
@@ -17,7 +18,7 @@ export async function getVoterId(): Promise<string> {
   if (Platform.OS === "web") {
     let id = sessionStorage.getItem(VOTER_ID_KEY);
     if (!id) {
-      id = crypto.randomUUID();
+      id = Crypto.randomUUID();
       sessionStorage.setItem(VOTER_ID_KEY, id);
     }
     return id;
@@ -25,7 +26,7 @@ export async function getVoterId(): Promise<string> {
 
   let id = await AsyncStorage.getItem(VOTER_ID_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = Crypto.randomUUID();
     await AsyncStorage.setItem(VOTER_ID_KEY, id);
   }
   return id;
