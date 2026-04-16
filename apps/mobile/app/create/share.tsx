@@ -251,6 +251,34 @@ export default function ShareScreen() {
           </View>
         </View>
 
+        {/* Add item input */}
+        <View style={styles.inputRow}>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Type an option..."
+            placeholderTextColor={colors.mist}
+            value={currentItem}
+            onChangeText={setCurrentItem}
+            onSubmitEditing={handleAddItem}
+            blurOnSubmit={false}
+            returnKeyType="done"
+            maxLength={100}
+          />
+          <Pressable
+            style={({ pressed }) => [
+              styles.addButton,
+              pressed && styles.addButtonPressed,
+            ]}
+            onPress={() => {
+              handleAddItem();
+              inputRef.current?.focus();
+            }}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </Pressable>
+        </View>
+
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
@@ -259,38 +287,10 @@ export default function ShareScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No items yet — add some below</Text>
+              <Text style={styles.emptyText}>No items yet — add some above</Text>
             </View>
           }
         />
-      </View>
-
-      {/* Add item input */}
-      <View style={styles.inputRow}>
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          placeholder="Type an option..."
-          placeholderTextColor={colors.mist}
-          value={currentItem}
-          onChangeText={setCurrentItem}
-          onSubmitEditing={handleAddItem}
-          blurOnSubmit={false}
-          returnKeyType="done"
-          maxLength={100}
-        />
-        <Pressable
-          style={({ pressed }) => [
-            styles.addButton,
-            pressed && styles.addButtonPressed,
-          ]}
-          onPress={() => {
-            handleAddItem();
-            inputRef.current?.focus();
-          }}
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </Pressable>
       </View>
 
       {/* Participants */}
@@ -504,8 +504,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: "row",
     gap: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   input: {
     flex: 1,

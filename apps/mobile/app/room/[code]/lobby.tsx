@@ -162,33 +162,6 @@ export default function LobbyScreen() {
             <Text style={styles.sectionHeading}>OPTIONS ({items.length}/15)</Text>
           </View>
 
-          <FlatList
-            data={items}
-            keyExtractor={(item) => item.id}
-            style={styles.itemList}
-            contentContainerStyle={styles.itemListContent}
-            renderItem={({ item, index }) => (
-              <View style={styles.itemRow}>
-                <View style={styles.itemNumber}>
-                  <Text style={styles.itemNumberText}>{index + 1}</Text>
-                </View>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemText} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  {item.addedBy && (
-                    <Text style={styles.addedByText}>
-                      {item.addedBy.name}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No items yet — be the first to add one!</Text>
-            }
-          />
-
           <View style={styles.inputRow}>
             <TextInput
               ref={inputRef}
@@ -215,6 +188,33 @@ export default function LobbyScreen() {
               <Text style={styles.addButtonText}>+</Text>
             </Pressable>
           </View>
+
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.id}
+            style={styles.itemList}
+            contentContainerStyle={styles.itemListContent}
+            renderItem={({ item, index }) => (
+              <View style={styles.itemRow}>
+                <View style={styles.itemNumber}>
+                  <Text style={styles.itemNumberText}>{index + 1}</Text>
+                </View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemText} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  {item.addedBy && (
+                    <Text style={styles.addedByText}>
+                      {item.addedBy.name}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No items yet — be the first to add one!</Text>
+            }
+          />
         </Animated.View>
       )}
 
@@ -353,8 +353,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: "row",
     gap: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   input: {
     flex: 1,
