@@ -109,13 +109,13 @@ export default function WaitingScreen() {
       {status && status.voters.length > 0 && (
         <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.voterList}>
           {status.voters.map((voter, i) => (
-            <View key={i} style={styles.voterRow}>
+            <View key={i} style={styles.voterChip}>
               <View style={[styles.avatar, voter.completed && styles.avatarDone]}>
                 <Text style={[styles.avatarText, voter.completed && styles.avatarTextDone]}>
                   {voter.name.charAt(0).toUpperCase()}
                 </Text>
               </View>
-              <Text style={styles.voterName}>{voter.name}</Text>
+              <Text style={styles.voterName} numberOfLines={1}>{voter.name}</Text>
               <View style={[styles.statusBadge, voter.completed ? styles.doneBadge : styles.pendingBadge]}>
                 <Text style={[styles.statusText, voter.completed ? styles.doneText : styles.pendingText]}>
                   {voter.completed ? "Done" : "Swiping..."}
@@ -222,21 +222,24 @@ const styles = StyleSheet.create({
   },
   voterList: {
     flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
+    alignContent: "flex-start",
   },
-  voterRow: {
+  voterChip: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.warmWhite,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    gap: spacing.md,
-    ...shadows.soft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    gap: spacing.xs,
   },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.sandLight,
     alignItems: "center",
     justifyContent: "center",
@@ -245,7 +248,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tealLight,
   },
   avatarText: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "700",
     color: colors.slate,
   },
@@ -253,13 +256,13 @@ const styles = StyleSheet.create({
     color: colors.teal,
   },
   voterName: {
-    ...typography.bodyBold,
+    ...typography.caption,
     color: colors.charcoal,
-    flex: 1,
+    maxWidth: 80,
   },
   statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: radius.pill,
   },
   doneBadge: {
@@ -270,7 +273,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     ...typography.tiny,
-    fontSize: 10,
+    fontSize: 9,
   },
   doneText: {
     color: colors.teal,

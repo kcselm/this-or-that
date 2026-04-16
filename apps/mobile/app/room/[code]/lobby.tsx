@@ -225,13 +225,13 @@ export default function LobbyScreen() {
           </Text>
           <View style={styles.participantList}>
             {participants.map((p) => (
-              <View key={p.voterId} style={styles.participantRow}>
+              <View key={p.voterId} style={styles.participantChip}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
                     {p.name.charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <Text style={styles.participantName}>{p.name}</Text>
+                <Text style={styles.participantName} numberOfLines={1}>{p.name}</Text>
                 {p.isCreator && (
                   <View style={styles.hostBadge}>
                     <Text style={styles.hostBadgeText}>HOST</Text>
@@ -386,46 +386,48 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   participantList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
-  participantRow: {
+  participantChip: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.warmWhite,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    gap: spacing.md,
-    ...shadows.soft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    gap: spacing.xs,
   },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.tealLight,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.coralLight,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "700",
-    color: colors.teal,
+    color: colors.coral,
   },
   participantName: {
-    ...typography.bodyBold,
+    ...typography.caption,
     color: colors.charcoal,
-    flex: 1,
+    maxWidth: 80,
   },
   hostBadge: {
     backgroundColor: colors.amberLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: radius.pill,
   },
   hostBadgeText: {
     ...typography.tiny,
     color: colors.amber,
-    fontSize: 10,
+    fontSize: 9,
   },
   bottomSection: {
     alignItems: "center",
