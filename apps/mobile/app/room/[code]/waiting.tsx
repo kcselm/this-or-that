@@ -59,8 +59,8 @@ export default function WaitingScreen() {
         if (data.isRevealed) {
           clearInterval(intervalRef.current);
           router.replace({
-            pathname: `/room/${code}/results`,
-            params: { name },
+            pathname: "/room/[code]/results",
+            params: { code, name },
           });
         }
       } catch (e) {
@@ -140,8 +140,8 @@ export default function WaitingScreen() {
                 const voterId = await getVoterId();
                 await revealResults(code, voterId);
                 router.replace({
-                  pathname: `/room/${code}/results`,
-                  params: { name },
+                  pathname: "/room/[code]/results",
+                  params: { code, name },
                 });
               } catch (e: any) {
                 Alert.alert("Error", e.message);

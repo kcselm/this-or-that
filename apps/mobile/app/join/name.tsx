@@ -38,18 +38,18 @@ export default function NameScreen() {
         return;
       } else if (room.status === "open") {
         router.replace({
-          pathname: `/room/${code}/lobby`,
-          params: { name: trimmed },
+          pathname: "/room/[code]/lobby",
+          params: { code, name: trimmed },
         });
       } else if (room.status === "voting") {
         router.replace({
-          pathname: `/room/${code}/swipe`,
-          params: { name: trimmed },
+          pathname: "/room/[code]/swipe",
+          params: { code, name: trimmed },
         });
       } else {
         router.replace({
-          pathname: `/room/${code}/results`,
-          params: { name: trimmed },
+          pathname: "/room/[code]/results",
+          params: { code, name: trimmed },
         });
       }
     } catch (e: any) {

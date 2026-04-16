@@ -166,8 +166,8 @@ export default function ShareScreen() {
       const voterId = await getVoterId();
       await startVoting(code, voterId);
       router.replace({
-        pathname: `/room/${code}/swipe`,
-        params: { name, isCreator: "true" },
+        pathname: "/room/[code]/swipe",
+        params: { code, name, isCreator: "true" },
       });
     } catch (e: any) {
       Alert.alert("Error", e.message);

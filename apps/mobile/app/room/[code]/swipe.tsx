@@ -68,8 +68,8 @@ export default function SwipeScreen() {
         setTimeout(() => {
           if (nextIndex >= items.length) {
             router.replace({
-              pathname: `/room/${code}/waiting`,
-              params: { name, isCreator: isCreator ?? "false" },
+              pathname: "/room/[code]/waiting",
+              params: { code, name, isCreator: isCreator ?? "false" },
             });
           } else {
             setCurrentIndex(nextIndex);

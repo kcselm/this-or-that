@@ -83,15 +83,15 @@ export default function LobbyScreen() {
         } else if (room.status === "voting") {
           clearInterval(intervalRef.current);
           router.replace({
-            pathname: `/room/${code}/swipe`,
-            params: { name },
+            pathname: "/room/[code]/swipe",
+            params: { code, name },
           });
           return;
         } else if (room.status === "revealed") {
           clearInterval(intervalRef.current);
           router.replace({
-            pathname: `/room/${code}/results`,
-            params: { name },
+            pathname: "/room/[code]/results",
+            params: { code, name },
           });
           return;
         }
