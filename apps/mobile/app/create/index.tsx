@@ -10,13 +10,15 @@ import {
   Platform,
   Switch,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const mode: "vote" | "rank" = modeParam === "rank" ? "rank" : "vote";
   const [topic, setTopic] = useState("");
   const [name, setName] = useState("");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
@@ -36,11 +38,12 @@ export default function CreateRoomScreen() {
         topic: trimmedTopic,
         creatorVoterId: voterId,
         creatorName: trimmedName,
-        allowSuggestions,
+        allowSuggestions: mode === "vote" ? allowSuggestions : false,
+        mode,
       });
       router.replace({
         pathname: "/create/share",
-        params: { code: room.code, name: trimmedName },
+        params: { code: room.code, name: trimmedName, mode },
       });
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -79,20 +82,22 @@ export default function CreateRoomScreen() {
         />
       </View>
 
-      <View style={styles.toggleRow}>
-        <View style={styles.toggleLabel}>
-          <Text style={styles.label}>Let others add items</Text>
-          <Text style={styles.toggleHint}>
-            Friends can suggest options after joining
-          </Text>
+      {mode === "vote" && (
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleLabel}>
+            <Text style={styles.label}>Let others add items</Text>
+            <Text style={styles.toggleHint}>
+              Friends can suggest options after joining
+            </Text>
+          </View>
+          <Switch
+            value={allowSuggestions}
+            onValueChange={setAllowSuggestions}
+            trackColor={{ false: colors.sand, true: colors.tealLight }}
+            thumbColor={allowSuggestions ? colors.teal : colors.mist}
+          />
         </View>
-        <Switch
-          value={allowSuggestions}
-          onValueChange={setAllowSuggestions}
-          trackColor={{ false: colors.sand, true: colors.tealLight }}
-          thumbColor={allowSuggestions ? colors.teal : colors.mist}
-        />
-      </View>
+      )}
 
       <Pressable
         style={({ pressed }) => [
