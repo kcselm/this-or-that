@@ -146,7 +146,7 @@ export default function HomeScreen() {
             styles.createButton,
             pressed && styles.createButtonPressed,
           ]}
-          onPress={() => router.push("/create")}
+          onPress={() => router.push("/create/mode")}
         >
           <Text style={styles.createButtonText}>Create a Room</Text>
           <Text style={styles.createButtonArrow}>+</Text>
