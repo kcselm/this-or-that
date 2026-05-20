@@ -33,7 +33,8 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function ShareScreen() {
   const router = useRouter();
-  const { code, name } = useLocalSearchParams<{ code: string; name: string }>();
+  const { code, name, mode: modeParam } = useLocalSearchParams<{ code: string; name: string; mode?: string }>();
+  const [mode, setMode] = useState<"vote" | "rank">(modeParam === "rank" ? "rank" : "vote");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -50,6 +51,7 @@ export default function ShareScreen() {
         const voterId = await getVoterId();
         const room = await getRoom(code, voterId);
         setItems(room.items);
+        if (room.mode) setMode(room.mode);
         setAllowSuggestions(room.allowSuggestions);
         if (room.topic) setTopic(room.topic);
 
@@ -87,7 +89,7 @@ export default function ShareScreen() {
   const handleAddItem = async () => {
     const trimmed = currentItem.trim();
     if (!trimmed) return;
-    if (items.length >= 15) return Alert.alert("Limit", "Maximum 15 items");
+    if (items.length >= maxItems) return Alert.alert("Limit", `Maximum ${maxItems} items`);
     if (items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())) {
       return Alert.alert("Duplicate", "That item already exists");
     }
@@ -158,15 +160,20 @@ export default function ShareScreen() {
   };
 
   const handleStart = async () => {
-    if (items.length < 2) {
-      return Alert.alert("Not enough items", "Add at least 2 items to start voting");
+    if (!canStart) {
+      return Alert.alert(
+        "Not ready",
+        mode === "rank"
+          ? "Blind rank rooms need exactly 5 items"
+          : "Add at least 2 items to start voting"
+      );
     }
     setLoading(true);
     try {
       const voterId = await getVoterId();
       await startVoting(code, voterId);
       router.replace({
-        pathname: "/room/[code]/swipe",
+        pathname: mode === "rank" ? "/room/[code]/rank" : "/room/[code]/swipe",
         params: { code, name, isCreator: "true" },
       });
     } catch (e: any) {
@@ -202,6 +209,9 @@ export default function ShareScreen() {
     </View>
   );
 
+  const maxItems = mode === "rank" ? 5 : 15;
+  const canStart = mode === "rank" ? items.length === 5 : items.length >= 2;
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -230,24 +240,26 @@ export default function ShareScreen() {
       </Animated.View>
 
       {/* Suggestions toggle */}
-      <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.toggleRow}>
-        <View style={styles.toggleLabel}>
-          <Text style={styles.toggleText}>Let others add items</Text>
-        </View>
-        <Switch
-          value={allowSuggestions}
-          onValueChange={handleToggleSuggestions}
-          trackColor={{ false: colors.sand, true: colors.tealLight }}
-          thumbColor={allowSuggestions ? colors.teal : colors.mist}
-        />
-      </Animated.View>
+      {mode === "vote" && (
+        <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.toggleRow}>
+          <View style={styles.toggleLabel}>
+            <Text style={styles.toggleText}>Let others add items</Text>
+          </View>
+          <Switch
+            value={allowSuggestions}
+            onValueChange={handleToggleSuggestions}
+            trackColor={{ false: colors.sand, true: colors.tealLight }}
+            thumbColor={allowSuggestions ? colors.teal : colors.mist}
+          />
+        </Animated.View>
+      )}
 
       {/* Items list */}
       <View style={styles.itemsSection}>
         <View style={styles.itemsHeader}>
           <Text style={styles.sectionHeading}>OPTIONS</Text>
           <View style={styles.countBadge}>
-            <Text style={styles.countText}>{items.length}/15</Text>
+            <Text style={styles.countText}>{items.length}/{maxItems}</Text>
           </View>
         </View>
 
@@ -319,14 +331,14 @@ export default function ShareScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.startButton,
-            (loading || items.length < 2) && styles.buttonDisabled,
-            pressed && !loading && items.length >= 2 && styles.startButtonPressed,
+            (loading || !canStart) && styles.buttonDisabled,
+            pressed && !loading && canStart && styles.startButtonPressed,
           ]}
           onPress={handleStart}
-          disabled={loading || items.length < 2}
+          disabled={loading || !canStart}
         >
           <Text style={styles.startButtonText}>
-            {loading ? "Starting..." : "Start Voting"}
+            {loading ? "Starting..." : mode === "rank" ? "Start Ranking" : "Start Voting"}
           </Text>
         </Pressable>
 
