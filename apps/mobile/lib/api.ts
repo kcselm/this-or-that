@@ -58,7 +58,7 @@ export type CreateRoomResponse = {
   id: string;
   code: string;
   topic: string;
-  mode: "vote" | "rank";
+  mode: "vote" | "rank" | "bracket";
   createdAt: string;
   expiresAt: string;
 };
@@ -68,7 +68,7 @@ export function createRoom(body: {
   creatorVoterId: string;
   creatorName: string;
   allowSuggestions?: boolean;
-  mode?: "vote" | "rank";
+  mode?: "vote" | "rank" | "bracket";
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -135,7 +135,7 @@ export type RoomResponse = {
   topic: string;
   status: "open" | "voting" | "revealed" | "closed";
   allowSuggestions: boolean;
-  mode: "vote" | "rank";
+  mode: "vote" | "rank" | "bracket";
   items: RoomItem[];
   myVotes?: Record<string, string>;
   myRankings?: Record<string, number>;
@@ -188,6 +188,7 @@ export type StatusResponse = {
   totalVoters: number;
   completedCount: number;
   isRevealed: boolean;
+  currentRound?: number | null;
   voters: { name: string; completed: boolean }[];
 };
 
@@ -262,7 +263,8 @@ export type ResultsResponse =
       completedCount: number;
       totalVoters: number;
     }
-  | RankResultsResponse;
+  | RankResultsResponse
+  | BracketResultsResponse;
 
 export function getResults(code: string) {
   return request<ResultsResponse>(`/rooms/${code}/results`);
@@ -274,3 +276,69 @@ export function revealResults(code: string, creatorVoterId: string) {
     body: JSON.stringify({ creatorVoterId }),
   });
 }
+
+// --- Bracket endpoints ---
+
+export type BracketMatchup = {
+  id: string;
+  slot: number;
+  itemA: { id: string; title: string } | null;
+  itemB: { id: string; title: string } | null;
+  winner: { id: string; title: string } | null;
+  isBye: boolean;
+  decidedByTiebreak: boolean;
+  voteBreakdown?: { voterId: string; voterName: string; pickedItemId: string }[];
+};
+
+export type BracketRound = {
+  round: number;
+  matchups: BracketMatchup[];
+};
+
+export type BracketResponse = {
+  currentRound: number | null;
+  totalRounds: number;
+  rounds: BracketRound[];
+  myVotes: Record<string, string>; // matchupId -> pickedItemId
+};
+
+export function getBracket(code: string, voterId: string) {
+  return request<BracketResponse>(
+    `/rooms/${code}/bracket?voterId=${encodeURIComponent(voterId)}`
+  );
+}
+
+export type MatchupVoteResponse = {
+  success: boolean;
+  progress: { votedThisRound: number; totalThisRound: number };
+};
+
+export function submitMatchupVote(
+  code: string,
+  body: { matchupId: string; voterId: string; voterName: string; pickedItemId: string }
+) {
+  return request<MatchupVoteResponse>(`/rooms/${code}/matchup-votes`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// --- Bracket results ---
+
+export type BracketResultsResponse =
+  | {
+      revealed: true;
+      mode: "bracket";
+      topic: string;
+      totalRounds: number;
+      winner: { id: string; title: string } | null;
+      rounds: BracketRound[];
+    }
+  | {
+      revealed: false;
+      mode: "bracket";
+      currentRound: number;
+      totalVoters: number;
+      completedCount: number;
+      totalThisRound: number;
+    };
