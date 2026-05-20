@@ -4,6 +4,7 @@ import type { App } from "./types";
 import { rooms } from "./routes/rooms";
 import { votes } from "./routes/votes";
 import { results } from "./routes/results";
+import { rankings } from "./routes/rankings";
 
 const app = new Hono<App>();
 
@@ -33,5 +34,6 @@ app.onError((err, c) => {
 app.route("/api/rooms", rooms);
 app.route("/api/rooms", votes);
 app.route("/api/rooms", results);
+app.route("/api/rooms", rankings);
 
 export default app;
