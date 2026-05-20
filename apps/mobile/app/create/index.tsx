@@ -18,7 +18,8 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 export default function CreateRoomScreen() {
   const router = useRouter();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
-  const mode: "vote" | "rank" = modeParam === "rank" ? "rank" : "vote";
+  const mode: "vote" | "rank" | "bracket" =
+    modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : "vote";
   const [topic, setTopic] = useState("");
   const [name, setName] = useState("");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
