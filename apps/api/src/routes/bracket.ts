@@ -320,6 +320,14 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
   }
 
   if (statements.length > 0) {
-    await db.batch(statements);
+    try {
+      await db.batch(statements);
+    } catch (e: any) {
+      // Concurrent advance race: another caller already created the next
+      // round (UNIQUE(room_id, round, slot)) or wrote the same winners.
+      // Swallow the constraint violation — the round is consistent either way.
+      const msg = String(e?.message ?? e);
+      if (!msg.includes("UNIQUE")) throw e;
+    }
   }
 }
