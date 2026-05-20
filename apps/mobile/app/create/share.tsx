@@ -34,7 +34,9 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 export default function ShareScreen() {
   const router = useRouter();
   const { code, name, mode: modeParam } = useLocalSearchParams<{ code: string; name: string; mode?: string }>();
-  const [mode, setMode] = useState<"vote" | "rank">(modeParam === "rank" ? "rank" : "vote");
+  const [mode, setMode] = useState<"vote" | "rank" | "bracket">(
+    modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : "vote"
+  );
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -165,6 +167,8 @@ export default function ShareScreen() {
         "Not ready",
         mode === "rank"
           ? "Blind rank rooms need exactly 5 items"
+          : mode === "bracket"
+          ? "Bracket rooms need between 4 and 16 items"
           : "Add at least 2 items to start voting"
       );
     }
@@ -173,7 +177,10 @@ export default function ShareScreen() {
       const voterId = await getVoterId();
       await startVoting(code, voterId);
       router.replace({
-        pathname: mode === "rank" ? "/room/[code]/rank" : "/room/[code]/swipe",
+        pathname:
+          mode === "rank" ? "/room/[code]/rank" :
+          mode === "bracket" ? "/room/[code]/bracket" :
+          "/room/[code]/swipe",
         params: { code, name, isCreator: "true" },
       });
     } catch (e: any) {
@@ -209,8 +216,13 @@ export default function ShareScreen() {
     </View>
   );
 
-  const maxItems = mode === "rank" ? 5 : 15;
-  const canStart = mode === "rank" ? items.length === 5 : items.length >= 2;
+  const maxItems =
+    mode === "rank" ? 5 :
+    mode === "bracket" ? 16 : 15;
+  const canStart =
+    mode === "rank" ? items.length === 5 :
+    mode === "bracket" ? items.length >= 4 && items.length <= 16 :
+    items.length >= 2;
 
   return (
     <KeyboardAvoidingView
@@ -338,7 +350,13 @@ export default function ShareScreen() {
           disabled={loading || !canStart}
         >
           <Text style={styles.startButtonText}>
-            {loading ? "Starting..." : mode === "rank" ? "Start Ranking" : "Start Voting"}
+            {loading
+              ? "Starting..."
+              : mode === "rank"
+              ? "Start Ranking"
+              : mode === "bracket"
+              ? "Start Tournament"
+              : "Start Voting"}
           </Text>
         </Pressable>
 
