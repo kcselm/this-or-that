@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   Pressable,
 } from "react-native";
@@ -11,10 +12,12 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { getResults, type ResultsResponse } from "../../../lib/api";
-import { clearActiveRoom } from "../../../lib/storage";
+import { getVoterId, clearActiveRoom } from "../../../lib/storage";
+import RankPlayerCard from "../../../components/RankPlayerCard";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
-type RevealedResults = Extract<ResultsResponse, { revealed: true; results: unknown }>;
+type RevealedVoteResults = Extract<ResultsResponse, { revealed: true; results: any[] }>;
+type RevealedRankResults = Extract<ResultsResponse, { revealed: true; mode: "rank" }>;
 
 const MEDAL_COLORS = [
   { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
@@ -26,7 +29,9 @@ export default function ResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { code } = useLocalSearchParams<{ code: string }>();
-  const [data, setData] = useState<RevealedResults | null>(null);
+  const [voteData, setVoteData] = useState<RevealedVoteResults | null>(null);
+  const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
+  const [myVoterId, setMyVoterId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,14 +39,15 @@ export default function ResultsScreen() {
     setLoading(true);
     setError(null);
     try {
+      const voterId = await getVoterId();
+      setMyVoterId(voterId);
       const res = await getResults(code);
-      if (res.revealed && "results" in res) {
-        setData(res);
-      } else if (res.revealed) {
-        // Rank-mode results are handled by a different screen (see Task 15)
-        setError("This room uses a different results view.");
-      } else {
+      if (!res.revealed) {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
+      } else if ("mode" in res && res.mode === "rank") {
+        setRankData(res);
+      } else {
+        setVoteData(res as RevealedVoteResults);
       }
     } catch (e: any) {
       setError(e.message);
@@ -52,6 +58,7 @@ export default function ResultsScreen() {
   useEffect(() => {
     loadResults();
     clearActiveRoom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   if (loading) {
@@ -63,7 +70,7 @@ export default function ResultsScreen() {
     );
   }
 
-  if (error || !data) {
+  if (error || (!voteData && !rankData)) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
@@ -83,8 +90,45 @@ export default function ResultsScreen() {
     );
   }
 
-  const winner = data.results[0];
+  if (rankData) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: spacing.xxl }}>
+        <Animated.Text entering={FadeInUp.duration(400)} style={styles.rankTopic}>
+          {rankData.topic}
+        </Animated.Text>
+        <Text style={styles.rankMeta}>{rankData.players.length} players ranked</Text>
+        <View style={styles.rankList}>
+          {rankData.players.map((p, i) => (
+            <Animated.View key={p.voterId} entering={FadeInDown.duration(400).delay(i * 80)}>
+              <RankPlayerCard
+                name={p.name}
+                isYou={p.voterId === myVoterId}
+                isCreator={p.isCreator}
+                rankings={p.rankings}
+              />
+            </Animated.View>
+          ))}
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.homeLinkText}>Back to Home</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
+  // Vote-mode results
+  return renderVoteResults(voteData!, insets, router);
+}
+
+function renderVoteResults(
+  data: RevealedVoteResults,
+  insets: ReturnType<typeof useSafeAreaInsets>,
+  router: ReturnType<typeof useRouter>
+) {
+  const winner = data.results[0];
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       {/* Winner spotlight */}
@@ -329,5 +373,22 @@ const styles = StyleSheet.create({
     color: colors.warmWhite,
     fontSize: 18,
     fontWeight: "700",
+  },
+  rankTopic: {
+    ...typography.h1,
+    color: colors.coral,
+    textAlign: "center",
+    paddingHorizontal: spacing.xl,
+  },
+  rankMeta: {
+    ...typography.caption,
+    color: colors.mist,
+    textAlign: "center",
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  rankList: {
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
   },
 });
