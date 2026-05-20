@@ -43,7 +43,10 @@ export default function NameScreen() {
         });
       } else if (room.status === "voting") {
         router.replace({
-          pathname: "/room/[code]/swipe",
+          pathname:
+            room.mode === "rank" ? "/room/[code]/rank" :
+            room.mode === "bracket" ? "/room/[code]/bracket" :
+            "/room/[code]/swipe",
           params: { code, name: trimmed },
         });
       } else {
