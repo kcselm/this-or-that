@@ -295,7 +295,7 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
       winnerBySlot.set(slot, d.winnerId);
     }
 
-    const nextSlotCount = allThisRound.length / 2;
+    const nextSlotCount = Math.floor(allThisRound.length / 2);
 
     if (nextSlotCount === 0) {
       // This round was the final — transition room to revealed.
