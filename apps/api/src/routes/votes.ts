@@ -30,6 +30,9 @@ votes.post("/:code/votes", async (c) => {
   if (room.mode === "rank") {
     return validationError("This is a blind rank room — use /rankings instead of /votes");
   }
+  if (room.mode === "bracket") {
+    return validationError("This is a bracket room — use /matchup-votes instead of /votes");
+  }
 
   // Verify item belongs to this room
   const item = await db
