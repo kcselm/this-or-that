@@ -9,7 +9,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import { getStatus, revealResults, ApiError, type StatusResponse } from "../../../lib/api";
+import { getStatus, revealResults, getRoom, ApiError, type StatusResponse } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
@@ -48,6 +48,7 @@ export default function WaitingScreen() {
   }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
+  const [mode, setMode] = useState<"vote" | "rank">("vote");
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const isCreator = isCreatorParam === "true";
 
@@ -77,6 +78,15 @@ export default function WaitingScreen() {
     intervalRef.current = setInterval(poll, 3000);
     return () => clearInterval(intervalRef.current);
   }, [code, name, router]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const room = await getRoom(code);
+        setMode(room.mode);
+      } catch {}
+    })();
+  }, [code]);
 
   const completedCount = status?.completedCount ?? 0;
   const totalVoters = status?.totalVoters ?? 0;
@@ -118,7 +128,7 @@ export default function WaitingScreen() {
               <Text style={styles.voterName} numberOfLines={1}>{voter.name}</Text>
               <View style={[styles.statusBadge, voter.completed ? styles.doneBadge : styles.pendingBadge]}>
                 <Text style={[styles.statusText, voter.completed ? styles.doneText : styles.pendingText]}>
-                  {voter.completed ? "Done" : "Swiping..."}
+                  {voter.completed ? "Done" : mode === "rank" ? "Ranking..." : "Swiping..."}
                 </Text>
               </View>
             </View>
