@@ -20,8 +20,8 @@ rooms.post("/", async (c) => {
     return validationError("Creator name is required and must be 1-30 characters");
   }
   const mode = body.mode ?? "vote";
-  if (mode !== "vote" && mode !== "rank") {
-    return validationError("mode must be 'vote' or 'rank'");
+  if (mode !== "vote" && mode !== "rank" && mode !== "bracket") {
+    return validationError("mode must be 'vote', 'rank', or 'bracket'");
   }
 
   const db = c.env.DB;
@@ -41,7 +41,7 @@ rooms.post("/", async (c) => {
     if (!existing) break;
   }
 
-  const allowSuggestions = mode === "rank" ? 0 : (body.allowSuggestions ? 1 : 0);
+  const allowSuggestions = (mode === "rank" || mode === "bracket") ? 0 : (body.allowSuggestions ? 1 : 0);
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
@@ -78,11 +78,17 @@ rooms.post("/:code/items", async (c) => {
 
   const isCreator = creatorVoterId && creatorVoterId === room.creator_voter_id;
 
-  if (!isCreator && room.mode === "rank") {
-    return invalidStatus("Participants cannot add items in a blind rank room");
+  if (!isCreator && (room.mode === "rank" || room.mode === "bracket")) {
+    return invalidStatus(
+      room.mode === "rank"
+        ? "Participants cannot add items in a blind rank room"
+        : "Participants cannot add items in a bracket room"
+    );
   }
 
-  const maxItems = room.mode === "rank" ? 5 : 15;
+  const maxItems =
+    room.mode === "rank" ? 5 :
+    room.mode === "bracket" ? 16 : 15;
 
   // Determine item list from either `items` (batch) or `item` (single)
   let itemTitles: string[];
@@ -196,6 +202,10 @@ rooms.post("/:code/start", async (c) => {
     if (itemCount !== 5) {
       return validationError("Blind rank rooms must have exactly 5 items to start");
     }
+  } else if (room.mode === "bracket") {
+    if (itemCount < 4 || itemCount > 16) {
+      return validationError("Bracket rooms need between 4 and 16 items to start");
+    }
   } else {
     if (itemCount < 2) {
       return validationError("Room must have at least 2 items to start voting");
@@ -224,7 +234,60 @@ rooms.post("/:code/start", async (c) => {
         .bind(room.id)
     );
     await db.batch(statements);
+  } else if (room.mode === "bracket") {
+    // Shuffle items
+    const items = await db
+      .prepare("SELECT id FROM items WHERE room_id = ? ORDER BY sort_order ASC")
+      .bind(room.id)
+      .all<{ id: string }>();
+    const ids = items.results.map((r) => r.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+
+    const N = ids.length;
+    let P = 1;
+    while (P < N) P *= 2;            // next power of 2 ≥ N
+    const realMatchups = N - P / 2;  // number of round-1 matchups with both items
+    const byes = P - N;               // number of round-1 bye matchups
+
+    const nowIso = new Date().toISOString();
+    const statements: any[] = [];
+
+    // Real Round 1 matchups: items 0..(realMatchups*2 - 1) paired adjacently.
+    for (let slot = 0; slot < realMatchups; slot++) {
+      const itemA = ids[slot * 2];
+      const itemB = ids[slot * 2 + 1];
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO matchups (id, room_id, round, slot, item_a_id, item_b_id, is_bye) VALUES (?, ?, 1, ?, ?, ?, 0)"
+          )
+          .bind(crypto.randomUUID(), room.id, slot, itemA, itemB)
+      );
+    }
+
+    // Bye matchups: remaining items each get their own slot, already decided.
+    for (let i = 0; i < byes; i++) {
+      const slot = realMatchups + i;
+      const itemA = ids[realMatchups * 2 + i];
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO matchups (id, room_id, round, slot, item_a_id, is_bye, winner_item_id, decided_at) VALUES (?, ?, 1, ?, ?, 1, ?, ?)"
+          )
+          .bind(crypto.randomUUID(), room.id, slot, itemA, itemA, nowIso)
+      );
+    }
+
+    statements.push(
+      db.prepare("UPDATE rooms SET status = 'voting' WHERE id = ?").bind(room.id)
+    );
+
+    await db.batch(statements);
   } else {
+    // vote mode: just flip status
     await db
       .prepare("UPDATE rooms SET status = 'voting' WHERE id = ?")
       .bind(room.id)
@@ -251,7 +314,8 @@ rooms.get("/:code", async (c) => {
     room.mode === "vote" &&
     (room.status !== "open" || isCreator || room.allow_suggestions);
   const showItemsForRankMode = room.mode === "rank" && room.status === "open" && isCreator;
-  if (showItemsForVoteMode || showItemsForRankMode) {
+  const showItemsForBracketMode = room.mode === "bracket" && room.status === "open" && isCreator;
+  if (showItemsForVoteMode || showItemsForRankMode || showItemsForBracketMode) {
     const allItems = await getItemsByRoomId(db, room.id);
     items = allItems.map((item) => ({
       id: item.id,
@@ -373,6 +437,9 @@ rooms.patch("/:code/settings", async (c) => {
   if (room.status !== "open") return invalidStatus("Settings can only be changed while the room is open");
   if (room.mode === "rank" && allowSuggestions === true) {
     return invalidStatus("Item suggestions are not available in blind rank rooms");
+  }
+  if (room.mode === "bracket" && allowSuggestions === true) {
+    return invalidStatus("Item suggestions are not available in bracket rooms");
   }
 
   await db
