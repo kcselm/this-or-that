@@ -27,6 +27,9 @@ votes.post("/:code/votes", async (c) => {
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
   if (room.status !== "voting") return invalidStatus("Votes can only be submitted while the room is in voting status");
+  if (room.mode === "rank") {
+    return validationError("This is a blind rank room — use /rankings instead of /votes");
+  }
 
   // Verify item belongs to this room
   const item = await db
