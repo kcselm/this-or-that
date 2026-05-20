@@ -212,18 +212,24 @@ rooms.post("/:code/start", async (c) => {
       const j = Math.floor(Math.random() * (i + 1));
       [ids[i], ids[j]] = [ids[j], ids[i]];
     }
-    for (let order = 0; order < ids.length; order++) {
-      await db
-        .prepare("UPDATE items SET presentation_order = ? WHERE id = ?")
-        .bind(order, ids[order])
-        .run();
-    }
-  }
 
-  await db
-    .prepare("UPDATE rooms SET status = 'voting' WHERE id = ?")
-    .bind(room.id)
-    .run();
+    const statements = ids.map((id, order) =>
+      db
+        .prepare("UPDATE items SET presentation_order = ? WHERE id = ?")
+        .bind(order, id)
+    );
+    statements.push(
+      db
+        .prepare("UPDATE rooms SET status = 'voting' WHERE id = ?")
+        .bind(room.id)
+    );
+    await db.batch(statements);
+  } else {
+    await db
+      .prepare("UPDATE rooms SET status = 'voting' WHERE id = ?")
+      .bind(room.id)
+      .run();
+  }
 
   return Response.json({ success: true, status: "voting", itemCount, mode: room.mode });
 });
