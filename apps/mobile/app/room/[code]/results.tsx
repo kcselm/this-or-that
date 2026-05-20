@@ -14,10 +14,12 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { getResults, type ResultsResponse } from "../../../lib/api";
 import { getVoterId, clearActiveRoom } from "../../../lib/storage";
 import RankPlayerCard from "../../../components/RankPlayerCard";
+import BracketTree from "../../../components/BracketTree";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 type RevealedVoteResults = Extract<ResultsResponse, { revealed: true; results: any[] }>;
 type RevealedRankResults = Extract<ResultsResponse, { revealed: true; mode: "rank" }>;
+type RevealedBracketResults = Extract<ResultsResponse, { revealed: true; mode: "bracket" }>;
 
 const MEDAL_COLORS = [
   { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
@@ -31,6 +33,7 @@ export default function ResultsScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const [voteData, setVoteData] = useState<RevealedVoteResults | null>(null);
   const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
+  const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
   const [myVoterId, setMyVoterId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,8 @@ export default function ResultsScreen() {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
       } else if ("mode" in res && res.mode === "rank") {
         setRankData(res);
+      } else if ("mode" in res && res.mode === "bracket") {
+        setBracketData(res as RevealedBracketResults);
       } else {
         setVoteData(res as RevealedVoteResults);
       }
@@ -70,7 +75,7 @@ export default function ResultsScreen() {
     );
   }
 
-  if (error || (!voteData && !rankData)) {
+  if (error || (!voteData && !rankData && !bracketData)) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
@@ -109,6 +114,42 @@ export default function ResultsScreen() {
             </Animated.View>
           ))}
         </View>
+        <Pressable
+          style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.homeLinkText}>Back to Home</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  if (bracketData) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: spacing.xxl }}
+      >
+        <Animated.View entering={FadeInUp.duration(500).springify()} style={styles.winnerCard}>
+          <Text style={styles.winnerLabel}>WINNER</Text>
+          <Text style={styles.winnerTitle}>{bracketData.winner?.title ?? "—"}</Text>
+        </Animated.View>
+
+        <Animated.Text entering={FadeInDown.duration(400).delay(150)} style={styles.topic}>
+          {bracketData.topic}
+        </Animated.Text>
+        <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.meta}>
+          {bracketData.totalRounds} rounds · tap a matchup to see who voted
+        </Animated.Text>
+
+        <View style={{ marginTop: spacing.lg }}>
+          <BracketTree
+            rounds={bracketData.rounds}
+            expandableBreakdowns
+            myVoterId={myVoterId}
+          />
+        </View>
+
         <Pressable
           style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
           onPress={() => router.replace("/")}
