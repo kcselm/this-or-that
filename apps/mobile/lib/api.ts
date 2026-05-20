@@ -58,6 +58,7 @@ export type CreateRoomResponse = {
   id: string;
   code: string;
   topic: string;
+  mode: "vote" | "rank";
   createdAt: string;
   expiresAt: string;
 };
@@ -67,6 +68,7 @@ export function createRoom(body: {
   creatorVoterId: string;
   creatorName: string;
   allowSuggestions?: boolean;
+  mode?: "vote" | "rank";
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -133,8 +135,10 @@ export type RoomResponse = {
   topic: string;
   status: "open" | "voting" | "revealed" | "closed";
   allowSuggestions: boolean;
+  mode: "vote" | "rank";
   items: RoomItem[];
   myVotes?: Record<string, string>;
+  myRankings?: Record<string, number>;
 };
 
 export function getRoom(code: string, voterId?: string) {
@@ -191,6 +195,55 @@ export function getStatus(code: string) {
   return request<StatusResponse>(`/rooms/${code}/status`);
 }
 
+// --- Rankings endpoints (blind rank mode) ---
+
+export type NextItemResponse = {
+  item: { id: string; title: string } | null;
+  progress: { placed: number; total: number };
+};
+
+export function getNextRankItem(code: string, voterId: string) {
+  return request<NextItemResponse>(
+    `/rooms/${code}/next-item?voterId=${encodeURIComponent(voterId)}`
+  );
+}
+
+export type RankingSubmitResponse = {
+  success: boolean;
+  progress: { placed: number; total: number };
+};
+
+export function submitRanking(
+  code: string,
+  body: { itemId: string; voterId: string; voterName: string; rank: number }
+) {
+  return request<RankingSubmitResponse>(`/rooms/${code}/rankings`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// --- Rank results ---
+
+export type RankResultsResponse =
+  | {
+      revealed: true;
+      mode: "rank";
+      topic: string;
+      players: {
+        voterId: string;
+        name: string;
+        isCreator: boolean;
+        rankings: { rank: number; itemId: string; title: string }[];
+      }[];
+    }
+  | {
+      revealed: false;
+      mode: "rank";
+      completedCount: number;
+      totalVoters: number;
+    };
+
 export type ResultsResponse =
   | {
       revealed: true;
@@ -208,7 +261,8 @@ export type ResultsResponse =
       revealed: false;
       completedCount: number;
       totalVoters: number;
-    };
+    }
+  | RankResultsResponse;
 
 export function getResults(code: string) {
   return request<ResultsResponse>(`/rooms/${code}/results`);

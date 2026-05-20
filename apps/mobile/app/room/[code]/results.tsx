@@ -14,7 +14,7 @@ import { getResults, type ResultsResponse } from "../../../lib/api";
 import { clearActiveRoom } from "../../../lib/storage";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
-type RevealedResults = Extract<ResultsResponse, { revealed: true }>;
+type RevealedResults = Extract<ResultsResponse, { revealed: true; results: unknown }>;
 
 const MEDAL_COLORS = [
   { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
@@ -35,8 +35,11 @@ export default function ResultsScreen() {
     setError(null);
     try {
       const res = await getResults(code);
-      if (res.revealed) {
+      if (res.revealed && "results" in res) {
         setData(res);
+      } else if (res.revealed) {
+        // Rank-mode results are handled by a different screen (see Task 15)
+        setError("This room uses a different results view.");
       } else {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
       }
