@@ -1,5 +1,16 @@
 import { createRouter } from "../types";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getRankingsByRoom, type Room } from "../db/queries";
+import {
+  getRoomByCode,
+  getItemsByRoomId,
+  getItemCount,
+  getRankingsByRoom,
+  getMatchupsByRoom,
+  getMatchupsByRoomAndRound,
+  getMatchupVotesByRoom,
+  getCurrentRound,
+  type Room,
+  type Matchup,
+} from "../db/queries";
 import { notFound, notCreator, invalidStatus, validationError } from "../lib/validation";
 
 export const results = createRouter();
@@ -11,6 +22,10 @@ results.get("/:code/status", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
+
+  if (room.mode === "bracket") {
+    return getBracketStatus(c, db, room);
+  }
 
   const totalItems = await getItemCount(db, room.id);
 
@@ -48,6 +63,65 @@ results.get("/:code/status", async (c) => {
   });
 });
 
+async function getBracketStatus(c: any, db: D1Database, room: Room) {
+  // For bracket: a participant is "complete" for the round when they have
+  // voted on every real (non-bye) matchup in the current round. The
+  // completedCount surfaces per-round progress, not whole-game progress.
+  // The reveal trigger is room.status === 'revealed' (independent).
+  const currentRound = room.status === "revealed" ? null : await getCurrentRound(db, room.id);
+
+  const { results: participants } = await db
+    .prepare(
+      "SELECT voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+    )
+    .bind(room.id)
+    .all<{ voter_id: string; voter_name: string }>();
+
+  let voters: { name: string; completed: boolean }[];
+  let completedCount: number;
+
+  if (currentRound === null) {
+    // Revealed — everyone counts as done.
+    voters = participants.map((p) => ({ name: p.voter_name, completed: true }));
+    completedCount = voters.length;
+  } else {
+    const roundMatchups = await getMatchupsByRoomAndRound(db, room.id, currentRound);
+    const realIds = roundMatchups.filter((m) => !m.is_bye).map((m) => m.id);
+    const required = realIds.length;
+
+    if (required === 0) {
+      // Degenerate (shouldn't happen): no real matchups in current round.
+      voters = participants.map((p) => ({ name: p.voter_name, completed: true }));
+      completedCount = voters.length;
+    } else {
+      const placeholders = realIds.map(() => "?").join(",");
+      const { results: voteRows } = await db
+        .prepare(
+          `SELECT voter_id, COUNT(*) as c FROM matchup_votes
+           WHERE room_id = ? AND matchup_id IN (${placeholders})
+           GROUP BY voter_id`
+        )
+        .bind(room.id, ...realIds)
+        .all<{ voter_id: string; c: number }>();
+
+      const countByVoter = new Map(voteRows.map((r) => [r.voter_id, r.c]));
+      voters = participants.map((p) => ({
+        name: p.voter_name,
+        completed: (countByVoter.get(p.voter_id) ?? 0) >= required,
+      }));
+      completedCount = voters.filter((v) => v.completed).length;
+    }
+  }
+
+  return Response.json({
+    totalVoters: voters.length,
+    completedCount,
+    isRevealed: room.status === "revealed",
+    currentRound,
+    voters,
+  });
+}
+
 // GET /api/rooms/:code/results — Get final results
 results.get("/:code/results", async (c) => {
   const code = c.req.param("code").toUpperCase();
@@ -59,6 +133,9 @@ results.get("/:code/results", async (c) => {
 
   if (room.mode === "rank") {
     return getRankResults(c, db, room, voterId);
+  }
+  if (room.mode === "bracket") {
+    return getBracketResults(c, db, room);
   }
   return getVoteResults(c, db, room);
 });
@@ -218,6 +295,86 @@ async function getRankResults(
     mode: "rank",
     topic: room.topic,
     players,
+  });
+}
+
+async function getBracketResults(c: any, db: D1Database, room: Room) {
+  if (room.status !== "revealed") {
+    // Mirror the rank "not yet revealed" shape, with mode discriminator.
+    const currentRound = await getCurrentRound(db, room.id);
+    const roundMatchups = await getMatchupsByRoomAndRound(db, room.id, currentRound);
+    const realCount = roundMatchups.filter((m) => !m.is_bye).length;
+    const participantsRow = await db
+      .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
+      .bind(room.id)
+      .first<{ count: number }>();
+    const totalVoters = participantsRow?.count ?? 0;
+
+    return Response.json({
+      revealed: false,
+      mode: "bracket",
+      currentRound,
+      totalVoters,
+      completedCount: 0,
+      totalThisRound: realCount,
+    });
+  }
+
+  // Revealed: build full bracket payload with vote breakdowns.
+  const items = await getItemsByRoomId(db, room.id);
+  const titleById = new Map(items.map((i) => [i.id, i.title]));
+  const N = items.length;
+  let P = 1;
+  while (P < N) P *= 2;
+  const totalRounds = Math.log2(P);
+
+  const allMatchups = await getMatchupsByRoom(db, room.id);
+  const allVotes = await getMatchupVotesByRoom(db, room.id);
+  const votesByMatchup = new Map<string, { voterId: string; voterName: string; pickedItemId: string }[]>();
+  for (const v of allVotes) {
+    if (!votesByMatchup.has(v.matchup_id)) votesByMatchup.set(v.matchup_id, []);
+    votesByMatchup.get(v.matchup_id)!.push({
+      voterId: v.voter_id,
+      voterName: v.voter_name,
+      pickedItemId: v.picked_item_id,
+    });
+  }
+
+  const byRound = new Map<number, Matchup[]>();
+  for (const m of allMatchups) {
+    if (!byRound.has(m.round)) byRound.set(m.round, []);
+    byRound.get(m.round)!.push(m);
+  }
+  for (const list of byRound.values()) list.sort((a, b) => a.slot - b.slot);
+
+  const rounds = [...byRound.keys()].sort((a, b) => a - b).map((round) => ({
+    round,
+    matchups: byRound.get(round)!.map((m) => ({
+      id: m.id,
+      slot: m.slot,
+      itemA: m.item_a_id ? { id: m.item_a_id, title: titleById.get(m.item_a_id) ?? "" } : null,
+      itemB: m.item_b_id ? { id: m.item_b_id, title: titleById.get(m.item_b_id) ?? "" } : null,
+      winner: m.winner_item_id ? { id: m.winner_item_id, title: titleById.get(m.winner_item_id) ?? "" } : null,
+      isBye: !!m.is_bye,
+      decidedByTiebreak: !!m.decided_by_tiebreak,
+      voteBreakdown: votesByMatchup.get(m.id) ?? [],
+    })),
+  }));
+
+  // Winner is the winner of the final round's only matchup.
+  const finalRound = byRound.get(totalRounds) ?? [];
+  const finalMatchup = finalRound[0];
+  const winner = finalMatchup?.winner_item_id
+    ? { id: finalMatchup.winner_item_id, title: titleById.get(finalMatchup.winner_item_id) ?? "" }
+    : null;
+
+  return Response.json({
+    revealed: true,
+    mode: "bracket",
+    topic: room.topic,
+    totalRounds,
+    winner,
+    rounds,
   });
 }
 
