@@ -98,7 +98,7 @@ export default function WaitingScreen() {
     poll();
     intervalRef.current = setInterval(poll, 3000);
     return () => clearInterval(intervalRef.current);
-  }, [code, name, router]);
+  }, [code, name, router, mode, lastVotedRound, isCreatorParam]);
 
   useEffect(() => {
     (async () => {
