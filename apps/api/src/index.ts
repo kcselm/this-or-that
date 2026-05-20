@@ -5,6 +5,7 @@ import { rooms } from "./routes/rooms";
 import { votes } from "./routes/votes";
 import { results } from "./routes/results";
 import { rankings } from "./routes/rankings";
+import { bracket } from "./routes/bracket";
 
 const app = new Hono<App>();
 
@@ -35,5 +36,6 @@ app.route("/api/rooms", rooms);
 app.route("/api/rooms", votes);
 app.route("/api/rooms", results);
 app.route("/api/rooms", rankings);
+app.route("/api/rooms", bracket);
 
 export default app;
