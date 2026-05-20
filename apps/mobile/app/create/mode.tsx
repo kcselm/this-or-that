@@ -38,6 +38,19 @@ export default function ModePickerScreen() {
           </Text>
         </Pressable>
       </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(400).delay(300).springify()}>
+        <Pressable
+          style={({ pressed }) => [styles.card, styles.cardBracket, pressed && styles.cardPressed]}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "bracket" } })}
+        >
+          <Text style={styles.cardEmoji}>⚔</Text>
+          <Text style={styles.cardTitle}>Bracket</Text>
+          <Text style={styles.cardDescription}>
+            Items face off in a tournament. Each round, everyone votes on the matchups. See the bracket grow.
+          </Text>
+        </Pressable>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -66,6 +79,9 @@ const styles = StyleSheet.create({
   },
   cardRank: {
     borderColor: colors.tealLight,
+  },
+  cardBracket: {
+    borderColor: colors.amberLight,
   },
   cardPressed: {
     transform: [{ scale: 0.98 }],
