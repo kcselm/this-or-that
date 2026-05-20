@@ -83,7 +83,7 @@ export default function LobbyScreen() {
         } else if (room.status === "voting") {
           clearInterval(intervalRef.current);
           router.replace({
-            pathname: "/room/[code]/swipe",
+            pathname: room.mode === "rank" ? "/room/[code]/rank" : "/room/[code]/swipe",
             params: { code, name },
           });
           return;
