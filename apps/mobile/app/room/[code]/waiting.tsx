@@ -41,14 +41,15 @@ const ringStyles = StyleSheet.create({
 
 export default function WaitingScreen() {
   const router = useRouter();
-  const { code, name, isCreator: isCreatorParam } = useLocalSearchParams<{
+  const { code, name, isCreator: isCreatorParam, lastVotedRound } = useLocalSearchParams<{
     code: string;
     name: string;
     isCreator?: string;
+    lastVotedRound?: string;
   }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
-  const [mode, setMode] = useState<"vote" | "rank">("vote");
+  const [mode, setMode] = useState<"vote" | "rank" | "bracket">("vote");
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const isCreator = isCreatorParam === "true";
 
@@ -62,6 +63,26 @@ export default function WaitingScreen() {
           router.replace({
             pathname: "/room/[code]/results",
             params: { code, name },
+          });
+          return;
+        }
+        // Bracket: when the server advances the round past lastVotedRound,
+        // hop the player to the round-reveal screen.
+        if (
+          mode === "bracket" &&
+          lastVotedRound &&
+          typeof data.currentRound === "number" &&
+          data.currentRound > Number(lastVotedRound)
+        ) {
+          clearInterval(intervalRef.current);
+          router.replace({
+            pathname: "/room/[code]/round-reveal",
+            params: {
+              code,
+              name,
+              isCreator: isCreatorParam ?? "false",
+              completedRound: lastVotedRound,
+            },
           });
         }
       } catch (e) {
@@ -128,7 +149,13 @@ export default function WaitingScreen() {
               <Text style={styles.voterName} numberOfLines={1}>{voter.name}</Text>
               <View style={[styles.statusBadge, voter.completed ? styles.doneBadge : styles.pendingBadge]}>
                 <Text style={[styles.statusText, voter.completed ? styles.doneText : styles.pendingText]}>
-                  {voter.completed ? "Done" : mode === "rank" ? "Ranking..." : "Swiping..."}
+                  {voter.completed
+                    ? "Done"
+                    : mode === "rank"
+                    ? "Ranking..."
+                    : mode === "bracket"
+                    ? "Voting..."
+                    : "Swiping..."}
                 </Text>
               </View>
             </View>
