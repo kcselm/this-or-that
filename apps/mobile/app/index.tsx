@@ -56,7 +56,10 @@ export default function HomeScreen() {
         }
       } else if (data.status === "voting") {
         router.push({
-          pathname: data.mode === "rank" ? "/room/[code]/rank" : "/room/[code]/swipe",
+          pathname:
+            data.mode === "rank" ? "/room/[code]/rank" :
+            data.mode === "bracket" ? "/room/[code]/bracket" :
+            "/room/[code]/swipe",
           params: { code: activeRoom.code, name: activeRoom.name },
         })
       } else {
