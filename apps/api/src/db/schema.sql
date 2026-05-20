@@ -6,6 +6,7 @@ CREATE TABLE rooms (
   creator_voter_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
   allow_suggestions INTEGER NOT NULL DEFAULT 0,
+  mode TEXT NOT NULL DEFAULT 'vote',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT NOT NULL
 );
@@ -18,6 +19,7 @@ CREATE TABLE items (
   sort_order INTEGER NOT NULL,
   added_by_voter_id TEXT,
   added_by_name TEXT,
+  presentation_order INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -31,6 +33,19 @@ CREATE TABLE votes (
   vote TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(item_id, voter_id)
+);
+
+-- Rankings (one per voter per item in rank mode; rank 1-5)
+CREATE TABLE rankings (
+  id TEXT PRIMARY KEY,
+  room_id TEXT NOT NULL REFERENCES rooms(id),
+  item_id TEXT NOT NULL REFERENCES items(id),
+  voter_id TEXT NOT NULL,
+  voter_name TEXT NOT NULL,
+  rank INTEGER NOT NULL CHECK(rank BETWEEN 1 AND 5),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(room_id, voter_id, item_id),
+  UNIQUE(room_id, voter_id, rank)
 );
 
 -- Participants (who has joined the room)
@@ -49,3 +64,5 @@ CREATE INDEX idx_items_room ON items(room_id);
 CREATE INDEX idx_votes_room ON votes(room_id);
 CREATE INDEX idx_votes_item ON votes(item_id);
 CREATE INDEX idx_participants_room ON participants(room_id);
+CREATE INDEX idx_rankings_room ON rankings(room_id);
+CREATE INDEX idx_rankings_room_voter ON rankings(room_id, voter_id);
