@@ -1,6 +1,6 @@
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter } from "../db/queries";
+import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter } from "../db/queries";
 import { notFound, notCreator, invalidStatus, validationError } from "../lib/validation";
 
 export const rooms = createRouter();
@@ -20,8 +20,13 @@ rooms.post("/", async (c) => {
     return validationError("Creator name is required and must be 1-30 characters");
   }
   const mode = body.mode ?? "vote";
-  if (mode !== "vote" && mode !== "rank" && mode !== "bracket") {
-    return validationError("mode must be 'vote', 'rank', or 'bracket'");
+  if (
+    mode !== "vote" &&
+    mode !== "rank" &&
+    mode !== "bracket" &&
+    mode !== "mlt"
+  ) {
+    return validationError("mode must be 'vote', 'rank', 'bracket', or 'mlt'");
   }
 
   const db = c.env.DB;
@@ -206,6 +211,17 @@ rooms.post("/:code/start", async (c) => {
     if (itemCount < 4 || itemCount > 16) {
       return validationError("Bracket rooms need between 4 and 16 items to start");
     }
+  } else if (room.mode === "mlt") {
+    if (itemCount < 3 || itemCount > 15) {
+      return validationError("Most Likely To rooms need between 3 and 15 prompts to start");
+    }
+    const participantsRow = await db
+      .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
+      .bind(room.id)
+      .first<{ count: number }>();
+    if ((participantsRow?.count ?? 0) < 3) {
+      return validationError("Most Likely To rooms need at least 3 participants to start");
+    }
   } else {
     if (itemCount < 2) {
       return validationError("Room must have at least 2 items to start voting");
@@ -315,7 +331,14 @@ rooms.get("/:code", async (c) => {
     (room.status !== "open" || isCreator || room.allow_suggestions);
   const showItemsForRankMode = room.mode === "rank" && room.status === "open" && isCreator;
   const showItemsForBracketMode = room.mode === "bracket" && room.status === "open" && isCreator;
-  if (showItemsForVoteMode || showItemsForRankMode || showItemsForBracketMode) {
+  const showItemsForMltMode =
+    room.mode === "mlt" && (room.status !== "open" || isCreator);
+  if (
+    showItemsForVoteMode ||
+    showItemsForRankMode ||
+    showItemsForBracketMode ||
+    showItemsForMltMode
+  ) {
     const allItems = await getItemsByRoomId(db, room.id);
     items = allItems.map((item) => ({
       id: item.id,
@@ -351,6 +374,15 @@ rooms.get("/:code", async (c) => {
         myRankings[r.item_id] = r.rank;
       }
       response.myRankings = myRankings;
+    }
+
+    if (room.mode === "mlt") {
+      const mltVotes = await getMltVotesByVoter(db, room.id, voterId);
+      const myMltVotes: Record<string, string> = {};
+      for (const v of mltVotes) {
+        myMltVotes[v.item_id] = v.target_voter_id;
+      }
+      response.myMltVotes = myMltVotes;
     }
   }
 
