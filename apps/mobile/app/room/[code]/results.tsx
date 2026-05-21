@@ -15,11 +15,13 @@ import { getResults, type ResultsResponse } from "../../../lib/api";
 import { getVoterId, clearActiveRoom } from "../../../lib/storage";
 import RankPlayerCard from "../../../components/RankPlayerCard";
 import BracketTree from "../../../components/BracketTree";
+import MltRevealCard from "../../../components/MltRevealCard";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 type RevealedVoteResults = Extract<ResultsResponse, { revealed: true; results: any[] }>;
 type RevealedRankResults = Extract<ResultsResponse, { revealed: true; mode: "rank" }>;
 type RevealedBracketResults = Extract<ResultsResponse, { revealed: true; mode: "bracket" }>;
+type RevealedMltResults = Extract<ResultsResponse, { revealed: true; mode: "mlt" }>;
 
 const MEDAL_COLORS = [
   { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
@@ -34,6 +36,7 @@ export default function ResultsScreen() {
   const [voteData, setVoteData] = useState<RevealedVoteResults | null>(null);
   const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
   const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
+  const [mltData, setMltData] = useState<RevealedMltResults | null>(null);
   const [myVoterId, setMyVoterId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +54,8 @@ export default function ResultsScreen() {
         setRankData(res);
       } else if ("mode" in res && res.mode === "bracket") {
         setBracketData(res as RevealedBracketResults);
+      } else if ("mode" in res && res.mode === "mlt") {
+        setMltData(res as RevealedMltResults);
       } else {
         setVoteData(res as RevealedVoteResults);
       }
@@ -75,7 +80,7 @@ export default function ResultsScreen() {
     );
   }
 
-  if (error || (!voteData && !rankData && !bracketData)) {
+  if (error || (!voteData && !rankData && !bracketData && !mltData)) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
@@ -120,6 +125,20 @@ export default function ResultsScreen() {
         >
           <Text style={styles.homeLinkText}>Back to Home</Text>
         </Pressable>
+      </ScrollView>
+    );
+  }
+
+  if (mltData) {
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: colors.cream, paddingTop: insets.top }}>
+        <MltResultsView
+          data={mltData}
+          onHome={async () => {
+            await clearActiveRoom();
+            router.replace("/");
+          }}
+        />
       </ScrollView>
     );
   }
@@ -432,4 +451,96 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
   },
+});
+
+function MltResultsView({
+  data,
+  onHome,
+}: {
+  data: RevealedMltResults;
+  onHome: () => void;
+}) {
+  const [phase, setPhase] = useState<"reveal" | "leaderboard">("reveal");
+  const [promptIndex, setPromptIndex] = useState(0);
+
+  const handleNext = () => {
+    if (promptIndex + 1 < data.prompts.length) {
+      setPromptIndex((i) => i + 1);
+    } else {
+      setPhase("leaderboard");
+    }
+  };
+
+  const handleReplay = () => {
+    setPromptIndex(0);
+    setPhase("reveal");
+  };
+
+  if (phase === "reveal") {
+    const current = data.prompts[promptIndex];
+    return (
+      <MltRevealCard
+        key={current.itemId}
+        promptText={current.text}
+        promptIndex={promptIndex}
+        total={data.prompts.length}
+        tallies={current.tallies}
+        winners={current.winners}
+        onNext={handleNext}
+      />
+    );
+  }
+
+  // Leaderboard phase
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <View style={mltResultsStyles.leaderboardWrap}>
+      <Text style={mltResultsStyles.title}>🏆 Superlatives</Text>
+      {data.leaderboard.map((entry, i) => (
+        <View key={entry.voterId} style={mltResultsStyles.row}>
+          <Text style={mltResultsStyles.medal}>{medals[i] ?? "  "}</Text>
+          <Text style={mltResultsStyles.name}>{entry.name}</Text>
+          <Text style={mltResultsStyles.wins}>
+            {entry.wins} {entry.wins === 1 ? "win" : "wins"}
+          </Text>
+        </View>
+      ))}
+      <Pressable style={mltResultsStyles.btn} onPress={handleReplay}>
+        <Text style={mltResultsStyles.btnText}>Replay reveal</Text>
+      </Pressable>
+      <Pressable style={[mltResultsStyles.btn, mltResultsStyles.btnSecondary]} onPress={onHome}>
+        <Text style={[mltResultsStyles.btnText, mltResultsStyles.btnTextSecondary]}>
+          Back to home
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const mltResultsStyles = StyleSheet.create({
+  leaderboardWrap: { padding: spacing.xl, alignItems: "stretch" },
+  title: { ...typography.h1, color: colors.charcoal, textAlign: "center", marginBottom: spacing.lg },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.sand,
+  },
+  medal: { ...typography.h2, width: 40 },
+  name: { ...typography.h3, flex: 1, color: colors.charcoal },
+  wins: { ...typography.body, color: colors.slate },
+  btn: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.coral,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  btnSecondary: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.coral },
+  btnText: { ...typography.h3, color: "#fff", fontWeight: "600" },
+  btnTextSecondary: { color: colors.coral },
 });
