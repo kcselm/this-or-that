@@ -29,8 +29,18 @@ results.get("/:code/status", async (c) => {
 
   const totalItems = await getItemCount(db, room.id);
 
-  const submissionsTable = room.mode === "rank" ? "rankings" : "votes";
-  const requiredCount = room.mode === "rank" ? 5 : totalItems;
+  let submissionsTable: string;
+  let requiredCount: number;
+  if (room.mode === "rank") {
+    submissionsTable = "rankings";
+    requiredCount = 5;
+  } else if (room.mode === "mlt") {
+    submissionsTable = "mlt_votes";
+    requiredCount = totalItems;
+  } else {
+    submissionsTable = "votes";
+    requiredCount = totalItems;
+  }
 
   const { results: participantRows } = await db
     .prepare(
@@ -136,6 +146,9 @@ results.get("/:code/results", async (c) => {
   }
   if (room.mode === "bracket") {
     return getBracketResults(c, db, room);
+  }
+  if (room.mode === "mlt") {
+    return getMltResults(c, db, room);
   }
   return getVoteResults(c, db, room);
 });
@@ -375,6 +388,125 @@ async function getBracketResults(c: any, db: D1Database, room: Room) {
     totalRounds,
     winner,
     rounds,
+  });
+}
+
+async function getMltResults(c: any, db: D1Database, room: Room) {
+  if (room.status !== "revealed") {
+    const totalParticipants = await db
+      .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
+      .bind(room.id)
+      .first<{ count: number }>();
+
+    const totalItems = await getItemCount(db, room.id);
+
+    const completed = await db
+      .prepare(
+        `SELECT COUNT(*) as completed FROM (
+          SELECT voter_id FROM mlt_votes WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+        )`
+      )
+      .bind(room.id, totalItems)
+      .first<{ completed: number }>();
+
+    return Response.json({
+      revealed: false,
+      mode: "mlt",
+      completedCount: completed?.completed ?? 0,
+      totalVoters: totalParticipants?.count ?? 0,
+    });
+  }
+
+  // Revealed: build per-prompt tallies + winners + leaderboard
+  const items = await getItemsByRoomId(db, room.id);
+
+  const { results: voteRows } = await db
+    .prepare(
+      "SELECT item_id, target_voter_id, target_voter_name FROM mlt_votes WHERE room_id = ?"
+    )
+    .bind(room.id)
+    .all<{ item_id: string; target_voter_id: string; target_voter_name: string }>();
+
+  const { results: participants } = await db
+    .prepare(
+      "SELECT voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+    )
+    .bind(room.id)
+    .all<{ voter_id: string; voter_name: string }>();
+
+  type ItemTallies = Map<string, { name: string; count: number }>;
+  const talliesByItem = new Map<string, ItemTallies>();
+  for (const item of items) talliesByItem.set(item.id, new Map());
+  for (const v of voteRows) {
+    const tallies = talliesByItem.get(v.item_id);
+    if (!tallies) continue;
+    const existing = tallies.get(v.target_voter_id);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      tallies.set(v.target_voter_id, { name: v.target_voter_name, count: 1 });
+    }
+  }
+
+  const winsByVoter = new Map<string, { name: string; wins: number }>();
+  for (const p of participants) {
+    winsByVoter.set(p.voter_id, { name: p.voter_name, wins: 0 });
+  }
+
+  const prompts = items.map((item) => {
+    const itemTallies = talliesByItem.get(item.id) ?? new Map();
+
+    const fullTallies = participants.map((p) => {
+      const t = itemTallies.get(p.voter_id);
+      return {
+        targetVoterId: p.voter_id,
+        name: t?.name ?? p.voter_name,
+        count: t?.count ?? 0,
+      };
+    });
+
+    fullTallies.sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.name.localeCompare(b.name);
+    });
+
+    const totalVotes = fullTallies.reduce((sum, t) => sum + t.count, 0);
+    const topCount = fullTallies[0]?.count ?? 0;
+    const winners =
+      topCount === 0
+        ? []
+        : fullTallies
+            .filter((t) => t.count === topCount)
+            .map((t) => ({ voterId: t.targetVoterId, name: t.name }));
+
+    for (const w of winners) {
+      const row = winsByVoter.get(w.voterId);
+      if (row) row.wins += 1;
+    }
+
+    return {
+      itemId: item.id,
+      text: item.title,
+      sortOrder: item.sort_order,
+      tallies: fullTallies,
+      winners,
+      totalVotes,
+    };
+  });
+
+  const leaderboard = [...winsByVoter.entries()]
+    .map(([voterId, row]) => ({ voterId, name: row.name, wins: row.wins }))
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return a.name.localeCompare(b.name);
+    });
+
+  return Response.json({
+    revealed: true,
+    mode: "mlt",
+    topic: room.topic,
+    prompts,
+    leaderboard,
   });
 }
 
