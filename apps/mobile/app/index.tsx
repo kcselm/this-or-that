@@ -59,6 +59,7 @@ export default function HomeScreen() {
           pathname:
             data.mode === "rank" ? "/room/[code]/rank" :
             data.mode === "bracket" ? "/room/[code]/bracket" :
+            data.mode === "mlt" ? "/room/[code]/mlt" :
             "/room/[code]/swipe",
           params: { code: activeRoom.code, name: activeRoom.name },
         })

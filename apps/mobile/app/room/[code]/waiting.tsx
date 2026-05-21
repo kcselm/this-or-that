@@ -155,6 +155,8 @@ export default function WaitingScreen() {
                     ? "Ranking..."
                     : mode === "bracket"
                     ? "Voting..."
+                    : mode === "mlt"
+                    ? "Voting on prompts..."
                     : "Swiping..."}
                 </Text>
               </View>

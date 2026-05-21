@@ -86,6 +86,7 @@ export default function LobbyScreen() {
             pathname:
               room.mode === "rank" ? "/room/[code]/rank" :
               room.mode === "bracket" ? "/room/[code]/bracket" :
+              room.mode === "mlt" ? "/room/[code]/mlt" :
               "/room/[code]/swipe",
             params: { code, name },
           });
