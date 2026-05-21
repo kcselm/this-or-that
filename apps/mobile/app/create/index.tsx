@@ -18,8 +18,14 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 export default function CreateRoomScreen() {
   const router = useRouter();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
-  const mode: "vote" | "rank" | "bracket" =
-    modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : "vote";
+  const mode: "vote" | "rank" | "bracket" | "mlt" =
+    modeParam === "rank"
+      ? "rank"
+      : modeParam === "bracket"
+        ? "bracket"
+        : modeParam === "mlt"
+          ? "mlt"
+          : "vote";
   const [topic, setTopic] = useState("");
   const [name, setName] = useState("");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
@@ -42,10 +48,17 @@ export default function CreateRoomScreen() {
         allowSuggestions: mode === "vote" ? allowSuggestions : false,
         mode,
       });
-      router.replace({
-        pathname: "/create/share",
-        params: { code: room.code, name: trimmedName, mode },
-      });
+      if (mode === "mlt") {
+        router.replace({
+          pathname: "/create/mlt-prompts",
+          params: { code: room.code, name: trimmedName, mode },
+        });
+      } else {
+        router.replace({
+          pathname: "/create/share",
+          params: { code: room.code, name: trimmedName, mode },
+        });
+      }
     } catch (e: any) {
       Alert.alert("Error", e.message);
     } finally {
