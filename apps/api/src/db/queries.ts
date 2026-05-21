@@ -5,7 +5,7 @@ export type Room = {
   creator_voter_id: string;
   status: "open" | "voting" | "revealed" | "closed";
   allow_suggestions: number;
-  mode: "vote" | "rank" | "bracket";
+  mode: "vote" | "rank" | "bracket" | "mlt";
   created_at: string;
   expires_at: string;
 };
@@ -198,4 +198,38 @@ export async function getCurrentRound(db: D1Database, roomId: string): Promise<n
     .bind(roomId)
     .first<{ max_round: number | null }>();
   return row?.max_round ?? 0;
+}
+
+export type MltVote = {
+  id: string;
+  room_id: string;
+  item_id: string;
+  voter_id: string;
+  voter_name: string;
+  target_voter_id: string;
+  target_voter_name: string;
+  created_at: string;
+};
+
+export async function getMltVotesByRoom(
+  db: D1Database,
+  roomId: string
+): Promise<MltVote[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM mlt_votes WHERE room_id = ?")
+    .bind(roomId)
+    .all<MltVote>();
+  return results;
+}
+
+export async function getMltVotesByVoter(
+  db: D1Database,
+  roomId: string,
+  voterId: string
+): Promise<MltVote[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM mlt_votes WHERE room_id = ? AND voter_id = ?")
+    .bind(roomId, voterId)
+    .all<MltVote>();
+  return results;
 }
