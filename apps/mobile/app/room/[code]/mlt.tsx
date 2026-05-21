@@ -27,7 +27,11 @@ import { colors, spacing, radius, typography } from "../../../lib/theme";
 export default function MltPlayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { code, name } = useLocalSearchParams<{ code: string; name?: string }>();
+  const { code, name, isCreator } = useLocalSearchParams<{
+    code: string;
+    name?: string;
+    isCreator?: string;
+  }>();
 
   const [room, setRoom] = useState<RoomResponse | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -74,9 +78,12 @@ export default function MltPlayScreen() {
   useEffect(() => {
     if (!room) return;
     if (currentIndex >= room.items.length) {
-      router.replace({ pathname: "/room/[code]/waiting", params: { code, name: name ?? "" } });
+      router.replace({
+        pathname: "/room/[code]/waiting",
+        params: { code, name: name ?? "", isCreator: isCreator ?? "false" },
+      });
     }
-  }, [currentIndex, room, code, name, router]);
+  }, [currentIndex, room, code, name, isCreator, router]);
 
   const colorByVoterId = useMemo(() => {
     const map = new Map<string, ReturnType<typeof getPlayerColor>>();

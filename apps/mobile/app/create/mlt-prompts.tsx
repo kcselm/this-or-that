@@ -30,7 +30,11 @@ type SelectedPrompt = { text: string; libraryId: string | null };
 export default function MltPromptsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { code } = useLocalSearchParams<{ code: string }>();
+  const { code, name, mode } = useLocalSearchParams<{
+    code: string;
+    name?: string;
+    mode?: string;
+  }>();
 
   const [library, setLibrary] = useState<MltPrompt[]>([]);
   const [selected, setSelected] = useState<SelectedPrompt[]>([]);
@@ -97,7 +101,7 @@ export default function MltPromptsScreen() {
         items: selected.map((s) => s.text),
         creatorVoterId: voterId,
       });
-      router.replace({ pathname: "/create/share", params: { code } });
+      router.replace({ pathname: "/create/share", params: { code, name, mode } });
     } catch (e) {
       Alert.alert(
         "Couldn't save prompts",

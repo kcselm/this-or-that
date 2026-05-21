@@ -112,6 +112,9 @@ rooms.post("/:code/items", async (c) => {
     if (typeof item !== "string" || item.trim().length < 1 || item.trim().length > 100) {
       return validationError("Each item must be a string of 1-100 characters");
     }
+    if (room.mode === "mlt" && item.trim().length > 80) {
+      return validationError("Most Likely To prompts must be 80 characters or fewer");
+    }
   }
 
   if (!isCreator) {
