@@ -6,11 +6,11 @@ import {
 import { notFound, invalidStatus, validationError } from "../lib/validation";
 import { MLT_PROMPTS } from "../lib/mlt-prompts";
 
+export const mltPrompts = createRouter();
 export const mlt = createRouter();
 
 // GET /api/mlt/prompts — Returns the curated prompt library.
-// Note: this is mounted at /api (not /api/rooms) — see index.ts.
-mlt.get("/prompts", (c) => {
+mltPrompts.get("/prompts", (c) => {
   return Response.json({ prompts: MLT_PROMPTS });
 });
 
@@ -128,7 +128,10 @@ async function maybeReveal(db: D1Database, roomId: string, totalItems: number) {
     .bind(roomId, totalItems)
     .first<{ completed: number }>();
 
-  if ((completed?.completed ?? 0) >= (participantCount?.count ?? 0)) {
+  // mlt requires ≥3 participants (defense-in-depth; start-time gate already enforces this).
+  const totalParticipants = participantCount?.count ?? 0;
+  const completedCount = completed?.completed ?? 0;
+  if (totalParticipants >= 3 && completedCount >= totalParticipants) {
     await db
       .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
       .bind(roomId)
