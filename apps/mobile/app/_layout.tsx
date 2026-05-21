@@ -23,6 +23,7 @@ export default function RootLayout() {
         <Stack.Screen name="create/index" options={{ title: "Create Room" }} />
         <Stack.Screen name="create/mode" options={{ title: "New Room" }} />
         <Stack.Screen name="create/share" options={{ title: "Build & Share", headerBackVisible: false }} />
+        <Stack.Screen name="create/mlt-prompts" options={{ title: "Pick prompts", headerShown: false }} />
         <Stack.Screen name="join/index" options={{ title: "Join Room" }} />
         <Stack.Screen name="join/name" options={{ title: "Your Name" }} />
         <Stack.Screen name="room/[code]/lobby" options={{ title: "Waiting", headerBackVisible: false }} />
