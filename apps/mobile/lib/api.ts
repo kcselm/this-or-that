@@ -58,7 +58,7 @@ export type CreateRoomResponse = {
   id: string;
   code: string;
   topic: string;
-  mode: "vote" | "rank" | "bracket";
+  mode: "vote" | "rank" | "bracket" | "mlt";
   createdAt: string;
   expiresAt: string;
 };
@@ -68,7 +68,7 @@ export function createRoom(body: {
   creatorVoterId: string;
   creatorName: string;
   allowSuggestions?: boolean;
-  mode?: "vote" | "rank" | "bracket";
+  mode?: "vote" | "rank" | "bracket" | "mlt";
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -135,10 +135,11 @@ export type RoomResponse = {
   topic: string;
   status: "open" | "voting" | "revealed" | "closed";
   allowSuggestions: boolean;
-  mode: "vote" | "rank" | "bracket";
+  mode: "vote" | "rank" | "bracket" | "mlt";
   items: RoomItem[];
   myVotes?: Record<string, string>;
   myRankings?: Record<string, number>;
+  myMltVotes?: Record<string, string>;
 };
 
 export function getRoom(code: string, voterId?: string) {
@@ -264,7 +265,9 @@ export type ResultsResponse =
       totalVoters: number;
     }
   | RankResultsResponse
-  | BracketResultsResponse;
+  | BracketResultsResponse
+  | MltResultsRevealed
+  | MltResultsPending;
 
 export function getResults(code: string) {
   return request<ResultsResponse>(`/rooms/${code}/results`);
@@ -342,3 +345,68 @@ export type BracketResultsResponse =
       completedCount: number;
       totalThisRound: number;
     };
+
+// --- Most Likely To endpoints ---
+
+export type MltPrompt = {
+  id: string;
+  text: string;
+  tags?: string[];
+};
+
+export type MltPromptsResponse = {
+  prompts: MltPrompt[];
+};
+
+export function getMltPrompts() {
+  return request<MltPromptsResponse>("/mlt/prompts");
+}
+
+export type SubmitMltVoteBody = {
+  itemId: string;
+  voterId: string;
+  voterName: string;
+  targetVoterId: string;
+};
+
+export type SubmitMltVoteResponse = {
+  success: true;
+  progress: { voted: number; total: number };
+};
+
+export function submitMltVote(code: string, body: SubmitMltVoteBody) {
+  return request<SubmitMltVoteResponse>(`/rooms/${code}/mlt-votes`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type MltPromptResult = {
+  itemId: string;
+  text: string;
+  sortOrder: number;
+  tallies: { targetVoterId: string; name: string; count: number }[];
+  winners: { voterId: string; name: string }[];
+  totalVotes: number;
+};
+
+export type MltLeaderboardEntry = {
+  voterId: string;
+  name: string;
+  wins: number;
+};
+
+export type MltResultsRevealed = {
+  revealed: true;
+  mode: "mlt";
+  topic: string;
+  prompts: MltPromptResult[];
+  leaderboard: MltLeaderboardEntry[];
+};
+
+export type MltResultsPending = {
+  revealed: false;
+  mode: "mlt";
+  completedCount: number;
+  totalVoters: number;
+};

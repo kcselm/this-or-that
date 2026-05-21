@@ -49,7 +49,7 @@ export default function WaitingScreen() {
   }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
-  const [mode, setMode] = useState<"vote" | "rank" | "bracket">("vote");
+  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt">("vote");
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const isCreator = isCreatorParam === "true";
 
