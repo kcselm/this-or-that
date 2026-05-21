@@ -51,6 +51,20 @@ export default function ModePickerScreen() {
           </Text>
         </Pressable>
       </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(400).delay(400).springify()}>
+        <Pressable
+          style={({ pressed }) => [styles.card, styles.cardMlt, pressed && styles.cardPressed]}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "mlt" } })}
+        >
+          <Text style={styles.cardEmoji}>★</Text>
+          <Text style={styles.cardTitle}>Most Likely To</Text>
+          <Text style={styles.cardDescription}>
+            Pick prompts like "most likely to ghost the group chat." For each one, vote on
+            the person in the room who fits it best.
+          </Text>
+        </Pressable>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -82,6 +96,9 @@ const styles = StyleSheet.create({
   },
   cardBracket: {
     borderColor: colors.amberLight,
+  },
+  cardMlt: {
+    borderColor: "#7C6EF2", // matches PLAYER_COLORS[3].border for thematic consistency
   },
   cardPressed: {
     transform: [{ scale: 0.98 }],
