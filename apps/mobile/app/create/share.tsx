@@ -169,6 +169,8 @@ export default function ShareScreen() {
           ? "Blind rank rooms need exactly 5 items"
           : mode === "bracket"
           ? "Bracket rooms need between 4 and 16 items"
+          : mode === "mlt"
+          ? "Most Likely To needs at least 3 prompts and 3 participants"
           : "Add at least 2 items to start voting"
       );
     }
@@ -180,6 +182,7 @@ export default function ShareScreen() {
         pathname:
           mode === "rank" ? "/room/[code]/rank" :
           mode === "bracket" ? "/room/[code]/bracket" :
+          mode === "mlt" ? "/room/[code]/mlt" :
           "/room/[code]/swipe",
         params: { code, name, isCreator: "true" },
       });
@@ -222,6 +225,7 @@ export default function ShareScreen() {
   const canStart =
     mode === "rank" ? items.length === 5 :
     mode === "bracket" ? items.length >= 4 && items.length <= 16 :
+    mode === "mlt" ? items.length >= 3 && items.length <= 15 && participants.length >= 3 :
     items.length >= 2;
 
   return (
@@ -340,6 +344,11 @@ export default function ShareScreen() {
 
       {/* Bottom actions */}
       <View style={styles.bottomSection}>
+        {mode === "mlt" && participants.length < 3 && (
+          <Text style={styles.hint}>
+            {participants.length} of 3 joined — share the code to fill the room.
+          </Text>
+        )}
         <Pressable
           style={({ pressed }) => [
             styles.startButton,
@@ -356,6 +365,8 @@ export default function ShareScreen() {
               ? "Start Ranking"
               : mode === "bracket"
               ? "Start Tournament"
+              : mode === "mlt"
+              ? "Start Game"
               : "Start Voting"}
           </Text>
         </Pressable>
@@ -600,6 +611,12 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     marginTop: "auto",
+  },
+  hint: {
+    ...typography.body,
+    color: colors.slate,
+    textAlign: "center",
+    marginBottom: spacing.sm,
   },
   startButton: {
     backgroundColor: colors.coral,
