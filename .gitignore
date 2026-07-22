@@ -27,6 +27,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code (local memory, settings, and skills)
+.claude/
+
 # Logs
 *.log
 npm-debug.log*

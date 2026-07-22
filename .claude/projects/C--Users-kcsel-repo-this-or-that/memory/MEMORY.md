@@ -1,1 +1,0 @@
-- [No Python for scripting](feedback_no_python.md) — Use jq/node instead of python for JSON parsing in shell commands
