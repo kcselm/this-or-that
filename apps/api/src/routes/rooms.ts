@@ -1,6 +1,6 @@
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter } from "../db/queries";
+import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter } from "../db/queries";
 import { notFound, notCreator, invalidStatus, validationError } from "../lib/validation";
 
 export const rooms = createRouter();
@@ -24,9 +24,10 @@ rooms.post("/", async (c) => {
     mode !== "vote" &&
     mode !== "rank" &&
     mode !== "bracket" &&
-    mode !== "mlt"
+    mode !== "mlt" &&
+    mode !== "tier"
   ) {
-    return validationError("mode must be 'vote', 'rank', 'bracket', or 'mlt'");
+    return validationError("mode must be 'vote', 'rank', 'bracket', 'mlt', or 'tier'");
   }
 
   const db = c.env.DB;
@@ -46,7 +47,7 @@ rooms.post("/", async (c) => {
     if (!existing) break;
   }
 
-  const allowSuggestions = (mode === "rank" || mode === "bracket") ? 0 : (body.allowSuggestions ? 1 : 0);
+  const allowSuggestions = (mode === "rank" || mode === "bracket" || mode === "tier") ? 0 : (body.allowSuggestions ? 1 : 0);
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
@@ -83,17 +84,20 @@ rooms.post("/:code/items", async (c) => {
 
   const isCreator = creatorVoterId && creatorVoterId === room.creator_voter_id;
 
-  if (!isCreator && (room.mode === "rank" || room.mode === "bracket")) {
+  if (!isCreator && (room.mode === "rank" || room.mode === "bracket" || room.mode === "tier")) {
     return invalidStatus(
       room.mode === "rank"
         ? "Participants cannot add items in a blind rank room"
-        : "Participants cannot add items in a bracket room"
+        : room.mode === "bracket"
+        ? "Participants cannot add items in a bracket room"
+        : "Participants cannot add items in a tier list room"
     );
   }
 
   const maxItems =
     room.mode === "rank" ? 5 :
-    room.mode === "bracket" ? 16 : 15;
+    room.mode === "bracket" ? 16 :
+    room.mode === "tier" ? 12 : 15;
 
   // Determine item list from either `items` (batch) or `item` (single)
   let itemTitles: string[];
@@ -225,6 +229,10 @@ rooms.post("/:code/start", async (c) => {
     if ((participantsRow?.count ?? 0) < 3) {
       return validationError("Most Likely To rooms need at least 3 participants to start");
     }
+  } else if (room.mode === "tier") {
+    if (itemCount < 3 || itemCount > 12) {
+      return validationError("Tier list rooms need between 3 and 12 items to start");
+    }
   } else {
     if (itemCount < 2) {
       return validationError("Room must have at least 2 items to start voting");
@@ -336,11 +344,14 @@ rooms.get("/:code", async (c) => {
   const showItemsForBracketMode = room.mode === "bracket" && room.status === "open" && isCreator;
   const showItemsForMltMode =
     room.mode === "mlt" && (room.status !== "open" || isCreator);
+  const showItemsForTierMode =
+    room.mode === "tier" && (room.status !== "open" || isCreator);
   if (
     showItemsForVoteMode ||
     showItemsForRankMode ||
     showItemsForBracketMode ||
-    showItemsForMltMode
+    showItemsForMltMode ||
+    showItemsForTierMode
   ) {
     const allItems = await getItemsByRoomId(db, room.id);
     items = allItems.map((item) => ({
@@ -386,6 +397,15 @@ rooms.get("/:code", async (c) => {
         myMltVotes[v.item_id] = v.target_voter_id;
       }
       response.myMltVotes = myMltVotes;
+    }
+
+    if (room.mode === "tier") {
+      const placements = await getTierPlacementsByVoter(db, room.id, voterId);
+      const myTiers: Record<string, string> = {};
+      for (const p of placements) {
+        myTiers[p.item_id] = p.tier;
+      }
+      response.myTiers = myTiers;
     }
   }
 
@@ -475,6 +495,9 @@ rooms.patch("/:code/settings", async (c) => {
   }
   if (room.mode === "bracket" && allowSuggestions === true) {
     return invalidStatus("Item suggestions are not available in bracket rooms");
+  }
+  if (room.mode === "tier" && allowSuggestions === true) {
+    return invalidStatus("Item suggestions are not available in tier list rooms");
   }
 
   await db
