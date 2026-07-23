@@ -7,6 +7,7 @@ import { results } from "./routes/results";
 import { rankings } from "./routes/rankings";
 import { bracket } from "./routes/bracket";
 import { mlt, mltPrompts } from "./routes/mlt";
+import { tiers } from "./routes/tiers";
 
 const app = new Hono<App>();
 
@@ -39,6 +40,7 @@ app.route("/api/rooms", results);
 app.route("/api/rooms", rankings);
 app.route("/api/rooms", bracket);
 app.route("/api/rooms", mlt);
+app.route("/api/rooms", tiers);
 app.route("/api/mlt", mltPrompts);
 
 export default app;
