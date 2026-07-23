@@ -5,7 +5,7 @@ export type Room = {
   creator_voter_id: string;
   status: "open" | "voting" | "revealed" | "closed";
   allow_suggestions: number;
-  mode: "vote" | "rank" | "bracket" | "mlt";
+  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
   created_at: string;
   expires_at: string;
 };
@@ -231,5 +231,38 @@ export async function getMltVotesByVoter(
     .prepare("SELECT * FROM mlt_votes WHERE room_id = ? AND voter_id = ?")
     .bind(roomId, voterId)
     .all<MltVote>();
+  return results;
+}
+
+export type TierPlacement = {
+  id: string;
+  room_id: string;
+  item_id: string;
+  voter_id: string;
+  voter_name: string;
+  tier: "S" | "A" | "B" | "C" | "D";
+  created_at: string;
+};
+
+export async function getTierPlacementsByRoom(
+  db: D1Database,
+  roomId: string
+): Promise<TierPlacement[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM tier_placements WHERE room_id = ?")
+    .bind(roomId)
+    .all<TierPlacement>();
+  return results;
+}
+
+export async function getTierPlacementsByVoter(
+  db: D1Database,
+  roomId: string,
+  voterId: string
+): Promise<TierPlacement[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM tier_placements WHERE room_id = ? AND voter_id = ?")
+    .bind(roomId, voterId)
+    .all<TierPlacement>();
   return results;
 }

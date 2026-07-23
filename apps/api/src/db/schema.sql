@@ -99,6 +99,18 @@ CREATE TABLE mlt_votes (
   UNIQUE(item_id, voter_id)
 );
 
+-- Tier list placements (tier mode; one per voter per item)
+CREATE TABLE tier_placements (
+  id TEXT PRIMARY KEY,
+  room_id TEXT NOT NULL REFERENCES rooms(id),
+  item_id TEXT NOT NULL REFERENCES items(id),
+  voter_id TEXT NOT NULL,
+  voter_name TEXT NOT NULL,
+  tier TEXT NOT NULL CHECK(tier IN ('S','A','B','C','D')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(item_id, voter_id)
+);
+
 -- Indexes
 CREATE INDEX idx_rooms_code ON rooms(code);
 CREATE INDEX idx_items_room ON items(room_id);
@@ -115,3 +127,5 @@ CREATE INDEX idx_matchup_votes_room_voter ON matchup_votes(room_id, voter_id);
 CREATE INDEX idx_mlt_votes_room ON mlt_votes(room_id);
 CREATE INDEX idx_mlt_votes_item ON mlt_votes(item_id);
 CREATE INDEX idx_mlt_votes_room_voter ON mlt_votes(room_id, voter_id);
+CREATE INDEX idx_tier_placements_room ON tier_placements(room_id);
+CREATE INDEX idx_tier_placements_room_voter ON tier_placements(room_id, voter_id);
