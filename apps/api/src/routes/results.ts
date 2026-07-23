@@ -8,6 +8,7 @@ import {
   getMatchupsByRoomAndRound,
   getMatchupVotesByRoom,
   getCurrentRound,
+  getTierPlacementsByRoom,
   type Room,
   type Matchup,
 } from "../db/queries";
@@ -36,6 +37,9 @@ results.get("/:code/status", async (c) => {
     requiredCount = 5;
   } else if (room.mode === "mlt") {
     submissionsTable = "mlt_votes";
+    requiredCount = totalItems;
+  } else if (room.mode === "tier") {
+    submissionsTable = "tier_placements";
     requiredCount = totalItems;
   } else {
     submissionsTable = "votes";
@@ -149,6 +153,9 @@ results.get("/:code/results", async (c) => {
   }
   if (room.mode === "mlt") {
     return getMltResults(c, db, room);
+  }
+  if (room.mode === "tier") {
+    return getTierResults(c, db, room, voterId);
   }
   return getVoteResults(c, db, room);
 });
@@ -507,6 +514,140 @@ async function getMltResults(c: any, db: D1Database, room: Room) {
     topic: room.topic,
     prompts,
     leaderboard,
+  });
+}
+
+const TIER_ORDER = ["S", "A", "B", "C", "D"] as const;
+const TIER_VALUE: Record<string, number> = { S: 5, A: 4, B: 3, C: 2, D: 1 };
+const VALUE_TIER: Record<number, "S" | "A" | "B" | "C" | "D"> = {
+  5: "S",
+  4: "A",
+  3: "B",
+  2: "C",
+  1: "D",
+};
+
+async function getTierResults(
+  c: any,
+  db: D1Database,
+  room: Room,
+  voterId: string | undefined
+) {
+  if (room.status !== "revealed") {
+    const totalParticipants = await db
+      .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
+      .bind(room.id)
+      .first<{ count: number }>();
+    const totalItems = await getItemCount(db, room.id);
+    const completed = await db
+      .prepare(
+        `SELECT COUNT(*) as completed FROM (
+          SELECT voter_id FROM tier_placements WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+        )`
+      )
+      .bind(room.id, totalItems)
+      .first<{ completed: number }>();
+
+    return Response.json({
+      revealed: false,
+      mode: "tier",
+      completedCount: completed?.completed ?? 0,
+      totalVoters: totalParticipants?.count ?? 0,
+    });
+  }
+
+  const items = await getItemsByRoomId(db, room.id); // sorted by sort_order ASC
+  const titleById = new Map(items.map((i) => [i.id, i.title]));
+  const orderById = new Map(items.map((i) => [i.id, i.sort_order]));
+  const allPlacements = await getTierPlacementsByRoom(db, room.id);
+
+  const participants = await db
+    .prepare(
+      "SELECT voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+    )
+    .bind(room.id)
+    .all<{ voter_id: string; voter_name: string }>();
+
+  // --- Consensus: average each item's tier value across all placements. ---
+  const sumByItem = new Map<string, { sum: number; count: number }>();
+  for (const p of allPlacements) {
+    const acc = sumByItem.get(p.item_id) ?? { sum: 0, count: 0 };
+    acc.sum += TIER_VALUE[p.tier] ?? 0;
+    acc.count += 1;
+    sumByItem.set(p.item_id, acc);
+  }
+
+  type ConsensusItem = { itemId: string; title: string; average: number; tier: string };
+  const consensusItems: ConsensusItem[] = [];
+  for (const item of items) {
+    const acc = sumByItem.get(item.id);
+    if (!acc || acc.count === 0) continue; // no placements (shouldn't happen once revealed)
+    const average = acc.sum / acc.count;
+    const tier = VALUE_TIER[Math.round(average)] ?? "D";
+    consensusItems.push({ itemId: item.id, title: item.title, average, tier });
+  }
+
+  const consensus = TIER_ORDER.map((tier) => ({
+    tier,
+    items: consensusItems
+      .filter((ci) => ci.tier === tier)
+      .sort((a, b) => {
+        if (b.average !== a.average) return b.average - a.average;
+        return (orderById.get(a.itemId) ?? 0) - (orderById.get(b.itemId) ?? 0);
+      })
+      .map((ci) => ({ itemId: ci.itemId, title: ci.title, average: ci.average })),
+  }));
+
+  // --- Per-player boards. ---
+  type PlayerRow = {
+    voterId: string;
+    name: string;
+    isCreator: boolean;
+    placements: { itemId: string; title: string; tier: string }[];
+  };
+  const byVoter = new Map<string, PlayerRow>();
+  for (const p of participants.results) {
+    byVoter.set(p.voter_id, {
+      voterId: p.voter_id,
+      name: p.voter_name,
+      isCreator: p.voter_id === room.creator_voter_id,
+      placements: [],
+    });
+  }
+  for (const p of allPlacements) {
+    const row = byVoter.get(p.voter_id);
+    if (!row) continue;
+    row.placements.push({
+      itemId: p.item_id,
+      title: titleById.get(p.item_id) ?? "",
+      tier: p.tier,
+    });
+  }
+
+  const players: PlayerRow[] = [];
+  for (const row of byVoter.values()) {
+    if (row.placements.length === items.length) {
+      row.placements.sort(
+        (a, b) => (orderById.get(a.itemId) ?? 0) - (orderById.get(b.itemId) ?? 0)
+      );
+      players.push(row);
+    }
+  }
+
+  players.sort((a, b) => {
+    if (voterId && a.voterId === voterId) return -1;
+    if (voterId && b.voterId === voterId) return 1;
+    if (a.isCreator && !b.isCreator) return -1;
+    if (b.isCreator && !a.isCreator) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return Response.json({
+    revealed: true,
+    mode: "tier",
+    topic: room.topic,
+    consensus,
+    players,
   });
 }
 
