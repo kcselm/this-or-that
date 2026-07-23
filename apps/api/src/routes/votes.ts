@@ -36,6 +36,9 @@ votes.post("/:code/votes", async (c) => {
   if (room.mode === "mlt") {
     return validationError("This is a Most Likely To room — use /mlt-votes instead of /votes");
   }
+  if (room.mode === "tier") {
+    return validationError("This is a tier list room — use /tiers instead of /votes");
+  }
 
   // Verify item belongs to this room
   const item = await db
