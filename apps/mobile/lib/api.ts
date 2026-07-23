@@ -1,4 +1,6 @@
-const API_BASE = "https://tot-api.kcselm93.workers.dev/api";
+// Local dev: pointing at the local `wrangler dev` backend.
+// Revert to "https://tot-api.kcselm93.workers.dev/api" before deploying.
+const API_BASE = "http://localhost:8787/api";
 
 const FRIENDLY_MESSAGES: Record<string, string> = {
   ROOM_NOT_FOUND: "That room doesn't exist or has expired.",
