@@ -41,6 +41,7 @@ export default function TierScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [measureNonce, setMeasureNonce] = useState(0);
 
   const zoneRects = useRef<Record<string, ZoneRect>>({});
 
@@ -215,7 +216,13 @@ export default function TierScreen() {
         <Text style={styles.progress}>{placedCount} of {items.length}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.boardScroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.boardScroll}
+        showsVerticalScrollIndicator={false}
+        onScrollEndDrag={() => setMeasureNonce((n) => n + 1)}
+        onMomentumScrollEnd={() => setMeasureNonce((n) => n + 1)}
+        scrollEventThrottle={16}
+      >
         {TIERS.map((tier) => {
           const meta = TIER_META[tier];
           return (
@@ -230,6 +237,7 @@ export default function TierScreen() {
               selectable={!!selectedId}
               onPress={handleZonePress}
               onMeasure={handleMeasure}
+              measureNonce={measureNonce}
             >
               {chipsIn(tier).map(renderChip)}
             </TierRow>
@@ -247,6 +255,7 @@ export default function TierScreen() {
           selectable={!!selectedId}
           onPress={handleZonePress}
           onMeasure={handleMeasure}
+          measureNonce={measureNonce}
         >
           {chipsIn("pool").map(renderChip)}
         </TierRow>

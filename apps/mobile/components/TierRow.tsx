@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ type Props = {
   onPress: (zone: TierZone) => void;
   onMeasure: (zone: TierZone, rect: ZoneRect) => void;
   children: React.ReactNode;
+  measureNonce?: number;
 };
 
 export default function TierRow({
@@ -35,6 +36,7 @@ export default function TierRow({
   onPress,
   onMeasure,
   children,
+  measureNonce,
 }: Props) {
   const ref = useRef<View>(null);
 
@@ -43,6 +45,12 @@ export default function TierRow({
       onMeasure(zone, { x, y, width, height });
     });
   };
+
+  useEffect(() => {
+    ref.current?.measureInWindow((x, y, width, height) => {
+      onMeasure(zone, { x, y, width, height });
+    });
+  }, [measureNonce]);
 
   return (
     <Pressable
