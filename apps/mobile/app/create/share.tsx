@@ -35,7 +35,7 @@ export default function ShareScreen() {
   const router = useRouter();
   const { code, name, mode: modeParam } = useLocalSearchParams<{ code: string; name: string; mode?: string }>();
   const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier">(
-    modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : modeParam === "mlt" ? "mlt" : "vote"
+    modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : modeParam === "mlt" ? "mlt" : modeParam === "tier" ? "tier" : "vote"
   );
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -171,6 +171,8 @@ export default function ShareScreen() {
           ? "Bracket rooms need between 4 and 16 items"
           : mode === "mlt"
           ? "Most Likely To needs at least 3 prompts and 3 participants"
+          : mode === "tier"
+          ? "Tier list rooms need between 3 and 12 items"
           : "Add at least 2 items to start voting"
       );
     }
@@ -183,6 +185,7 @@ export default function ShareScreen() {
           mode === "rank" ? "/room/[code]/rank" :
           mode === "bracket" ? "/room/[code]/bracket" :
           mode === "mlt" ? "/room/[code]/mlt" :
+          mode === "tier" ? "/room/[code]/tier" :
           "/room/[code]/swipe",
         params: { code, name, isCreator: "true" },
       });
@@ -221,11 +224,13 @@ export default function ShareScreen() {
 
   const maxItems =
     mode === "rank" ? 5 :
-    mode === "bracket" ? 16 : 15;
+    mode === "bracket" ? 16 :
+    mode === "tier" ? 12 : 15;
   const canStart =
     mode === "rank" ? items.length === 5 :
     mode === "bracket" ? items.length >= 4 && items.length <= 16 :
     mode === "mlt" ? items.length >= 3 && items.length <= 15 && participants.length >= 3 :
+    mode === "tier" ? items.length >= 3 && items.length <= 12 :
     items.length >= 2;
 
   return (
@@ -367,6 +372,8 @@ export default function ShareScreen() {
               ? "Start Tournament"
               : mode === "mlt"
               ? "Start Game"
+              : mode === "tier"
+              ? "Start Tier List"
               : "Start Voting"}
           </Text>
         </Pressable>
