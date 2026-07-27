@@ -63,3 +63,46 @@ export async function clearActiveRoom(): Promise<void> {
   }
   await AsyncStorage.removeItem(ACTIVE_ROOM_KEY);
 }
+
+// --- Tier list in-progress board draft (local only, keyed by room code) ---
+
+function tierDraftKey(code: string): string {
+  return `tot_tier_draft_${code.toUpperCase()}`;
+}
+
+export async function saveTierDraft(
+  code: string,
+  placement: Record<string, string>
+): Promise<void> {
+  const json = JSON.stringify(placement);
+  if (Platform.OS === "web") {
+    sessionStorage.setItem(tierDraftKey(code), json);
+    return;
+  }
+  await AsyncStorage.setItem(tierDraftKey(code), json);
+}
+
+export async function getTierDraft(
+  code: string
+): Promise<Record<string, string> | null> {
+  let json: string | null;
+  if (Platform.OS === "web") {
+    json = sessionStorage.getItem(tierDraftKey(code));
+  } else {
+    json = await AsyncStorage.getItem(tierDraftKey(code));
+  }
+  if (!json) return null;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+export async function clearTierDraft(code: string): Promise<void> {
+  if (Platform.OS === "web") {
+    sessionStorage.removeItem(tierDraftKey(code));
+    return;
+  }
+  await AsyncStorage.removeItem(tierDraftKey(code));
+}
