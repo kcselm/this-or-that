@@ -18,14 +18,16 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 export default function CreateRoomScreen() {
   const router = useRouter();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
-  const mode: "vote" | "rank" | "bracket" | "mlt" =
+  const mode: "vote" | "rank" | "bracket" | "mlt" | "tier" =
     modeParam === "rank"
       ? "rank"
       : modeParam === "bracket"
         ? "bracket"
         : modeParam === "mlt"
           ? "mlt"
-          : "vote";
+          : modeParam === "tier"
+            ? "tier"
+            : "vote";
   const [topic, setTopic] = useState("");
   const [name, setName] = useState("");
   const [allowSuggestions, setAllowSuggestions] = useState(false);

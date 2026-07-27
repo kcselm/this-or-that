@@ -65,6 +65,19 @@ export default function ModePickerScreen() {
           </Text>
         </Pressable>
       </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(400).delay(500).springify()}>
+        <Pressable
+          style={({ pressed }) => [styles.card, styles.cardTier, pressed && styles.cardPressed]}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "tier" } })}
+        >
+          <Text style={styles.cardEmoji}>▦</Text>
+          <Text style={styles.cardTitle}>Tier List</Text>
+          <Text style={styles.cardDescription}>
+            Add items, then everyone drags them into S/A/B/C/D. We average the tiers into one shared board.
+          </Text>
+        </Pressable>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -99,6 +112,9 @@ const styles = StyleSheet.create({
   },
   cardMlt: {
     borderColor: "#7C6EF2", // matches PLAYER_COLORS[3].border for thematic consistency
+  },
+  cardTier: {
+    borderColor: "#3FA45B", // tier "C" green accent
   },
   cardPressed: {
     transform: [{ scale: 0.98 }],
