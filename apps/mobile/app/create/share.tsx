@@ -34,7 +34,7 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 export default function ShareScreen() {
   const router = useRouter();
   const { code, name, mode: modeParam } = useLocalSearchParams<{ code: string; name: string; mode?: string }>();
-  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt">(
+  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier">(
     modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : modeParam === "mlt" ? "mlt" : "vote"
   );
   const [copied, setCopied] = useState(false);

@@ -60,7 +60,7 @@ export type CreateRoomResponse = {
   id: string;
   code: string;
   topic: string;
-  mode: "vote" | "rank" | "bracket" | "mlt";
+  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
   createdAt: string;
   expiresAt: string;
 };
@@ -70,7 +70,7 @@ export function createRoom(body: {
   creatorVoterId: string;
   creatorName: string;
   allowSuggestions?: boolean;
-  mode?: "vote" | "rank" | "bracket" | "mlt";
+  mode?: "vote" | "rank" | "bracket" | "mlt" | "tier";
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -137,11 +137,12 @@ export type RoomResponse = {
   topic: string;
   status: "open" | "voting" | "revealed" | "closed";
   allowSuggestions: boolean;
-  mode: "vote" | "rank" | "bracket" | "mlt";
+  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
   items: RoomItem[];
   myVotes?: Record<string, string>;
   myRankings?: Record<string, number>;
   myMltVotes?: Record<string, string>;
+  myTiers?: Record<string, string>;
 };
 
 export function getRoom(code: string, voterId?: string) {
@@ -269,7 +270,8 @@ export type ResultsResponse =
   | RankResultsResponse
   | BracketResultsResponse
   | MltResultsRevealed
-  | MltResultsPending;
+  | MltResultsPending
+  | TierResultsResponse;
 
 export function getResults(code: string) {
   return request<ResultsResponse>(`/rooms/${code}/results`);
@@ -412,3 +414,52 @@ export type MltResultsPending = {
   completedCount: number;
   totalVoters: number;
 };
+
+// --- Tier list endpoints (tier mode) ---
+
+export type Tier = "S" | "A" | "B" | "C" | "D";
+
+export type TierPlacementInput = { itemId: string; tier: Tier };
+
+export type SubmitTierBoardResponse = {
+  success: boolean;
+  progress: { placed: number; total: number };
+  isRevealed: boolean;
+};
+
+export function submitTierBoard(
+  code: string,
+  body: { voterId: string; voterName: string; placements: TierPlacementInput[] }
+) {
+  return request<SubmitTierBoardResponse>(`/rooms/${code}/tiers`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type TierConsensusRow = {
+  tier: Tier;
+  items: { itemId: string; title: string; average: number }[];
+};
+
+export type TierPlayerBoard = {
+  voterId: string;
+  name: string;
+  isCreator: boolean;
+  placements: { itemId: string; title: string; tier: Tier }[];
+};
+
+export type TierResultsResponse =
+  | {
+      revealed: true;
+      mode: "tier";
+      topic: string;
+      consensus: TierConsensusRow[];
+      players: TierPlayerBoard[];
+    }
+  | {
+      revealed: false;
+      mode: "tier";
+      completedCount: number;
+      totalVoters: number;
+    };
