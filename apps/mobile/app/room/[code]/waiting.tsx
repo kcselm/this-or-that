@@ -157,6 +157,8 @@ export default function WaitingScreen() {
                     ? "Voting..."
                     : mode === "mlt"
                     ? "Voting on prompts..."
+                    : mode === "tier"
+                    ? "Sorting..."
                     : "Swiping..."}
                 </Text>
               </View>

@@ -60,6 +60,7 @@ export default function HomeScreen() {
             data.mode === "rank" ? "/room/[code]/rank" :
             data.mode === "bracket" ? "/room/[code]/bracket" :
             data.mode === "mlt" ? "/room/[code]/mlt" :
+            data.mode === "tier" ? "/room/[code]/tier" :
             "/room/[code]/swipe",
           params: { code: activeRoom.code, name: activeRoom.name },
         })

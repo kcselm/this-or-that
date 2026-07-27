@@ -87,6 +87,7 @@ export default function LobbyScreen() {
               room.mode === "rank" ? "/room/[code]/rank" :
               room.mode === "bracket" ? "/room/[code]/bracket" :
               room.mode === "mlt" ? "/room/[code]/mlt" :
+              room.mode === "tier" ? "/room/[code]/tier" :
               "/room/[code]/swipe",
             params: { code, name },
           });
