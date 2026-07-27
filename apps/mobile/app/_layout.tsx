@@ -31,6 +31,7 @@ export default function RootLayout() {
         <Stack.Screen name="room/[code]/rank" options={{ headerShown: false }} />
         <Stack.Screen name="room/[code]/bracket" options={{ headerShown: false }} />
         <Stack.Screen name="room/[code]/mlt" options={{ title: "Most Likely To", headerShown: false }} />
+        <Stack.Screen name="room/[code]/tier" options={{ headerShown: false }} />
         <Stack.Screen name="room/[code]/round-reveal" options={{ headerShown: false }} />
         <Stack.Screen name="room/[code]/waiting" options={{ title: "Waiting", headerBackVisible: false }} />
         <Stack.Screen name="room/[code]/results" options={{ headerShown: false }} />
