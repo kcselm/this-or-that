@@ -16,12 +16,16 @@ import { getVoterId, clearActiveRoom } from "../../../lib/storage";
 import RankPlayerCard from "../../../components/RankPlayerCard";
 import BracketTree from "../../../components/BracketTree";
 import MltRevealCard from "../../../components/MltRevealCard";
+import TierBoard from "../../../components/TierBoard";
+import { TIERS } from "../../../lib/tiers";
+import type { Tier } from "../../../lib/api";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 type RevealedVoteResults = Extract<ResultsResponse, { revealed: true; results: any[] }>;
 type RevealedRankResults = Extract<ResultsResponse, { revealed: true; mode: "rank" }>;
 type RevealedBracketResults = Extract<ResultsResponse, { revealed: true; mode: "bracket" }>;
 type RevealedMltResults = Extract<ResultsResponse, { revealed: true; mode: "mlt" }>;
+type RevealedTierResults = Extract<ResultsResponse, { revealed: true; mode: "tier" }>;
 
 const MEDAL_COLORS = [
   { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
@@ -37,6 +41,7 @@ export default function ResultsScreen() {
   const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
   const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
   const [mltData, setMltData] = useState<RevealedMltResults | null>(null);
+  const [tierData, setTierData] = useState<RevealedTierResults | null>(null);
   const [myVoterId, setMyVoterId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +61,8 @@ export default function ResultsScreen() {
         setBracketData(res as RevealedBracketResults);
       } else if ("mode" in res && res.mode === "mlt") {
         setMltData(res as RevealedMltResults);
+      } else if ("mode" in res && res.mode === "tier") {
+        setTierData(res as RevealedTierResults);
       } else {
         setVoteData(res as RevealedVoteResults);
       }
@@ -80,7 +87,7 @@ export default function ResultsScreen() {
     );
   }
 
-  if (error || (!voteData && !rankData && !bracketData && !mltData)) {
+  if (error || (!voteData && !rankData && !bracketData && !mltData && !tierData)) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
@@ -176,6 +183,17 @@ export default function ResultsScreen() {
           <Text style={styles.homeLinkText}>Back to Home</Text>
         </Pressable>
       </ScrollView>
+    );
+  }
+
+  if (tierData) {
+    return (
+      <TierResultsView
+        data={tierData}
+        myVoterId={myVoterId}
+        insets={insets}
+        onHome={() => router.replace("/")}
+      />
     );
   }
 
@@ -543,4 +561,142 @@ const mltResultsStyles = StyleSheet.create({
   btnSecondary: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.coral },
   btnText: { ...typography.h3, color: "#fff", fontWeight: "600" },
   btnTextSecondary: { color: colors.coral },
+});
+
+function TierResultsView({
+  data,
+  myVoterId,
+  insets,
+  onHome,
+}: {
+  data: RevealedTierResults;
+  myVoterId: string;
+  insets: ReturnType<typeof useSafeAreaInsets>;
+  onHome: () => void;
+}) {
+  // Tab 0 = Consensus; tabs 1..N = each player's board.
+  const [tab, setTab] = useState(0);
+
+  // `getResults` doesn't send a voterId, so pin "You" first client-side.
+  const orderedPlayers = [...data.players].sort((a, b) => {
+    if (a.voterId === myVoterId) return -1;
+    if (b.voterId === myVoterId) return 1;
+    return 0;
+  });
+
+  const consensusRows = TIERS.map((tier) => ({
+    tier,
+    titles:
+      data.consensus.find((r) => r.tier === tier)?.items.map((i) => i.title) ?? [],
+  }));
+
+  const playerRows = (placements: { title: string; tier: Tier }[]) =>
+    TIERS.map((tier) => ({
+      tier,
+      titles: placements.filter((p) => p.tier === tier).map((p) => p.title),
+    }));
+
+  const tabs = [
+    { key: "consensus", label: "Consensus" },
+    ...orderedPlayers.map((p) => ({
+      key: p.voterId,
+      label: p.voterId === myVoterId ? "You" : p.name,
+    })),
+  ];
+
+  const activePlayer = tab === 0 ? null : orderedPlayers[tab - 1];
+  const rows = tab === 0 ? consensusRows : playerRows(activePlayer!.placements);
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.cream }}
+      contentContainerStyle={{ paddingTop: insets.top + 16, padding: spacing.xl, paddingBottom: spacing.xxl }}
+    >
+      <Text style={tierResultsStyles.topic}>{data.topic}</Text>
+      <Text style={tierResultsStyles.meta}>
+        {tab === 0 ? "Averaged from every board" : `${tabs[tab].label}'s board`}
+      </Text>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={tierResultsStyles.tabs}
+      >
+        {tabs.map((t, i) => (
+          <Pressable
+            key={t.key}
+            onPress={() => setTab(i)}
+            style={[tierResultsStyles.tab, tab === i && tierResultsStyles.tabActive]}
+          >
+            <Text style={[tierResultsStyles.tabText, tab === i && tierResultsStyles.tabTextActive]}>
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      <View style={{ marginTop: spacing.lg }}>
+        <TierBoard rows={rows} />
+      </View>
+
+      <Pressable
+        style={({ pressed }) => [tierResultsStyles.homeButton, pressed && { opacity: 0.85 }]}
+        onPress={onHome}
+      >
+        <Text style={tierResultsStyles.homeButtonText}>Back to Home</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+const tierResultsStyles = StyleSheet.create({
+  topic: {
+    ...typography.h1,
+    color: colors.coral,
+    textAlign: "center",
+  },
+  meta: {
+    ...typography.caption,
+    color: colors.mist,
+    textAlign: "center",
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  tabs: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  tab: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warmWhite,
+    borderWidth: 1,
+    borderColor: colors.sand,
+  },
+  tabActive: {
+    backgroundColor: colors.coral,
+    borderColor: colors.coral,
+  },
+  tabText: {
+    ...typography.caption,
+    color: colors.slate,
+    fontWeight: "700",
+  },
+  tabTextActive: {
+    color: colors.warmWhite,
+  },
+  homeButton: {
+    backgroundColor: colors.coral,
+    paddingVertical: 16,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    marginTop: spacing.xl,
+    ...shadows.button,
+  },
+  homeButtonText: {
+    color: colors.warmWhite,
+    fontSize: 18,
+    fontWeight: "700",
+  },
 });
