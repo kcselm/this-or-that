@@ -38,15 +38,15 @@ export default function TierChip({
       translateY.value = e.translationY;
       runOnJS(onDragMove)(id, e.absoluteX, e.absoluteY);
     })
-    .onEnd((e) => {
-      runOnJS(onDragEnd)(id, e.absoluteX, e.absoluteY);
+    .onEnd((e, success) => {
+      if (success) runOnJS(onDragEnd)(id, e.absoluteX, e.absoluteY);
       translateX.value = withSpring(0, { damping: 20, stiffness: 200 });
       translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
       active.value = 0;
     });
 
-  const tap = Gesture.Tap().onEnd(() => {
-    runOnJS(onTap)(id);
+  const tap = Gesture.Tap().onEnd((_e, success) => {
+    if (success) runOnJS(onTap)(id);
   });
 
   const gesture = Gesture.Race(tap, pan);
