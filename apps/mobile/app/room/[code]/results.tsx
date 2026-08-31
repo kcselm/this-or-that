@@ -42,7 +42,6 @@ export default function ResultsScreen() {
   const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
   const [mltData, setMltData] = useState<RevealedMltResults | null>(null);
   const [tierData, setTierData] = useState<RevealedTierResults | null>(null);
-  const [myVoterId, setMyVoterId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +50,7 @@ export default function ResultsScreen() {
     setError(null);
     try {
       const voterId = await getVoterId();
-      setMyVoterId(voterId);
-      const res = await getResults(code);
+      const res = await getResults(code, voterId);
       if (!res.revealed) {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
       } else if ("mode" in res && res.mode === "rank") {
@@ -116,10 +114,10 @@ export default function ResultsScreen() {
         <Text style={styles.rankMeta}>{rankData.players.length} players ranked</Text>
         <View style={styles.rankList}>
           {rankData.players.map((p, i) => (
-            <Animated.View key={p.voterId} entering={FadeInDown.duration(400).delay(i * 80)}>
+            <Animated.View key={p.participantId} entering={FadeInDown.duration(400).delay(i * 80)}>
               <RankPlayerCard
                 name={p.name}
-                isYou={p.voterId === myVoterId}
+                isYou={p.isYou}
                 isCreator={p.isCreator}
                 rankings={p.rankings}
               />
@@ -169,11 +167,7 @@ export default function ResultsScreen() {
         </Animated.Text>
 
         <View style={{ marginTop: spacing.lg }}>
-          <BracketTree
-            rounds={bracketData.rounds}
-            expandableBreakdowns
-            myVoterId={myVoterId}
-          />
+          <BracketTree rounds={bracketData.rounds} expandableBreakdowns />
         </View>
 
         <Pressable
@@ -190,7 +184,6 @@ export default function ResultsScreen() {
     return (
       <TierResultsView
         data={tierData}
-        myVoterId={myVoterId}
         insets={insets}
         onHome={() => router.replace("/")}
       />
@@ -515,7 +508,7 @@ function MltResultsView({
     <View style={mltResultsStyles.leaderboardWrap}>
       <Text style={mltResultsStyles.title}>🏆 Superlatives</Text>
       {data.leaderboard.map((entry, i) => (
-        <View key={entry.voterId} style={mltResultsStyles.row}>
+        <View key={entry.participantId} style={mltResultsStyles.row}>
           <Text style={mltResultsStyles.medal}>{medals[i] ?? "  "}</Text>
           <Text style={mltResultsStyles.name}>{entry.name}</Text>
           <Text style={mltResultsStyles.wins}>
@@ -565,22 +558,19 @@ const mltResultsStyles = StyleSheet.create({
 
 function TierResultsView({
   data,
-  myVoterId,
   insets,
   onHome,
 }: {
   data: RevealedTierResults;
-  myVoterId: string;
   insets: ReturnType<typeof useSafeAreaInsets>;
   onHome: () => void;
 }) {
   // Tab 0 = Consensus; tabs 1..N = each player's board.
   const [tab, setTab] = useState(0);
 
-  // `getResults` doesn't send a voterId, so pin "You" first client-side.
+  // The server pins "You" first when a voterId is sent; keep it stable here too.
   const orderedPlayers = [...data.players].sort((a, b) => {
-    if (a.voterId === myVoterId) return -1;
-    if (b.voterId === myVoterId) return 1;
+    if (a.isYou !== b.isYou) return a.isYou ? -1 : 1;
     return 0;
   });
 
@@ -599,8 +589,8 @@ function TierResultsView({
   const tabs = [
     { key: "consensus", label: "Consensus" },
     ...orderedPlayers.map((p) => ({
-      key: p.voterId,
-      label: p.voterId === myVoterId ? "You" : p.name,
+      key: p.participantId,
+      label: p.isYou ? "You" : p.name,
     })),
   ];
 

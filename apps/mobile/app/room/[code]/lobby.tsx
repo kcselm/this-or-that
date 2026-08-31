@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import {
   type RoomItem,
 } from "../../../lib/api";
 import { getVoterId, saveActiveRoom } from "../../../lib/storage";
+import { usePolling } from "../../../lib/usePolling";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 function PulsingDot() {
@@ -59,64 +60,57 @@ export default function LobbyScreen() {
   const [items, setItems] = useState<RoomItem[]>([]);
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [currentItem, setCurrentItem] = useState("");
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const inputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const voterId = await getVoterId();
-        const room = await getRoom(code, voterId);
-        if (room.topic) {
-          setTopic(room.topic);
-          saveActiveRoom({ code, topic: room.topic, name });
-        }
-        setAllowSuggestions(room.allowSuggestions);
-        setItems(room.items);
-
-        if (room.status === "closed") {
-          clearInterval(intervalRef.current);
-          Alert.alert("Room Closed", "The host closed this room.", [
-            { text: "OK", onPress: () => router.replace("/") },
-          ]);
-          return;
-        } else if (room.status === "voting") {
-          clearInterval(intervalRef.current);
-          router.replace({
-            pathname:
-              room.mode === "rank" ? "/room/[code]/rank" :
-              room.mode === "bracket" ? "/room/[code]/bracket" :
-              room.mode === "mlt" ? "/room/[code]/mlt" :
-              room.mode === "tier" ? "/room/[code]/tier" :
-              "/room/[code]/swipe",
-            params: { code, name },
-          });
-          return;
-        } else if (room.status === "revealed") {
-          clearInterval(intervalRef.current);
-          router.replace({
-            pathname: "/room/[code]/results",
-            params: { code, name },
-          });
-          return;
-        }
-
-        const data = await getParticipants(code);
-        setParticipants(data.participants);
-      } catch (e) {
-        if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
-          clearInterval(intervalRef.current);
-          Alert.alert("Room Expired", "This room no longer exists.", [
-            { text: "OK", onPress: () => router.replace("/") },
-          ]);
-        }
+  usePolling(async (stop) => {
+    try {
+      const voterId = await getVoterId();
+      const room = await getRoom(code, voterId);
+      if (room.topic) {
+        setTopic(room.topic);
+        saveActiveRoom({ code, topic: room.topic, name });
       }
-    };
+      setAllowSuggestions(room.allowSuggestions);
+      setItems(room.items);
 
-    poll();
-    intervalRef.current = setInterval(poll, 3000);
-    return () => clearInterval(intervalRef.current);
-  }, [code, name, router]);
+      if (room.status === "closed") {
+        stop();
+        Alert.alert("Room Closed", "The host closed this room.", [
+          { text: "OK", onPress: () => router.replace("/") },
+        ]);
+        return;
+      } else if (room.status === "voting") {
+        stop();
+        router.replace({
+          pathname:
+            room.mode === "rank" ? "/room/[code]/rank" :
+            room.mode === "bracket" ? "/room/[code]/bracket" :
+            room.mode === "mlt" ? "/room/[code]/mlt" :
+            room.mode === "tier" ? "/room/[code]/tier" :
+            "/room/[code]/swipe",
+          params: { code, name },
+        });
+        return;
+      } else if (room.status === "revealed") {
+        stop();
+        router.replace({
+          pathname: "/room/[code]/results",
+          params: { code, name },
+        });
+        return;
+      }
+
+      const data = await getParticipants(code);
+      setParticipants(data.participants);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
+        stop();
+        Alert.alert("Room Expired", "This room no longer exists.", [
+          { text: "OK", onPress: () => router.replace("/") },
+        ]);
+      }
+    }
+  }, 4000);
 
   const handleAddItem = async () => {
     const trimmed = currentItem.trim();
@@ -230,7 +224,7 @@ export default function LobbyScreen() {
           </Text>
           <View style={styles.participantList}>
             {participants.map((p) => (
-              <View key={p.voterId} style={styles.participantChip}>
+              <View key={p.participantId} style={styles.participantChip}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
                     {p.name.charAt(0).toUpperCase()}

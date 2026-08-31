@@ -49,7 +49,7 @@ export default function MltPlayScreen() {
         setMyVoterId(voterId);
         const [roomRes, partRes] = await Promise.all([
           getRoom(code, voterId),
-          getParticipants(code),
+          getParticipants(code, voterId),
         ]);
         setRoom(roomRes);
         setParticipants(partRes.participants);
@@ -85,16 +85,16 @@ export default function MltPlayScreen() {
     }
   }, [currentIndex, room, code, name, isCreator, router]);
 
-  const colorByVoterId = useMemo(() => {
+  const colorByParticipantId = useMemo(() => {
     const map = new Map<string, ReturnType<typeof getPlayerColor>>();
-    participants.forEach((p, i) => map.set(p.voterId, getPlayerColor(i)));
+    participants.forEach((p, i) => map.set(p.participantId, getPlayerColor(i)));
     return map;
   }, [participants]);
 
   // Suppress unused-warning while keeping local cache for future use (e.g. re-vote UI)
   void myMltVotes;
 
-  const handleVote = async (targetVoterId: string) => {
+  const handleVote = async (targetParticipantId: string) => {
     if (!room || submitting) return;
     const item = room.items[currentIndex];
     if (!item) return;
@@ -104,9 +104,9 @@ export default function MltPlayScreen() {
         itemId: item.id,
         voterId: myVoterId,
         voterName: name ?? "",
-        targetVoterId,
+        targetParticipantId,
       });
-      setMyMltVotes((prev) => ({ ...prev, [item.id]: targetVoterId }));
+      setMyMltVotes((prev) => ({ ...prev, [item.id]: targetParticipantId }));
       setCurrentIndex((prev) => prev + 1);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't submit vote.");
@@ -159,14 +159,14 @@ export default function MltPlayScreen() {
 
       <View style={styles.tileGrid}>
         {participants.map((p) => {
-          const color = colorByVoterId.get(p.voterId) ?? getPlayerColor(0);
-          const label = p.voterId === myVoterId ? `${p.name} (you)` : p.name;
+          const color = colorByParticipantId.get(p.participantId) ?? getPlayerColor(0);
+          const label = p.isYou ? `${p.name} (you)` : p.name;
           return (
-            <View key={p.voterId} style={styles.tileWrapper}>
+            <View key={p.participantId} style={styles.tileWrapper}>
               <PlayerTile
                 name={label}
                 color={color}
-                onPress={() => handleVote(p.voterId)}
+                onPress={() => handleVote(p.participantId)}
                 disabled={submitting}
               />
             </View>

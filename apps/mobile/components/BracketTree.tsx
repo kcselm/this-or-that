@@ -6,10 +6,9 @@ import { colors, spacing, radius, typography, shadows } from "../lib/theme";
 type Props = {
   rounds: BracketRound[];
   expandableBreakdowns?: boolean; // true on final results, false on between-round
-  myVoterId?: string;
 };
 
-export default function BracketTree({ rounds, expandableBreakdowns, myVoterId }: Props) {
+export default function BracketTree({ rounds, expandableBreakdowns }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -73,7 +72,7 @@ export default function BracketTree({ rounds, expandableBreakdowns, myVoterId }:
                             : v.pickedItemId === m.itemB?.id
                             ? m.itemB?.title
                             : "?";
-                        const isMe = myVoterId && v.voterId === myVoterId;
+                        const isMe = v.isYou;
                         return (
                           <Text key={i} style={[styles.breakdownLine, isMe && styles.breakdownMe]}>
                             {v.voterName}{isMe ? " (you)" : ""} → {pickedTitle}

@@ -29,14 +29,25 @@ export default function NameScreen() {
       const voterId = await getVoterId();
       const room = await getRoom(code, voterId);
 
+      // The API rejects joins on closed/revealed rooms, so check status first.
+      if (room.status === "closed") {
+        Alert.alert("Room Closed", "The host closed this room.");
+        return;
+      }
+      if (room.status === "revealed") {
+        // Voting is over — show the results without registering as a participant.
+        router.replace({
+          pathname: "/room/[code]/results",
+          params: { code, name: trimmed },
+        });
+        return;
+      }
+
       // Register as a participant
       await joinRoom(code, { voterId, voterName: trimmed });
       await saveActiveRoom({ code, topic: room.topic, name: trimmed });
 
-      if (room.status === "closed") {
-        Alert.alert("Room Closed", "The host closed this room.");
-        return;
-      } else if (room.status === "open") {
+      if (room.status === "open") {
         router.replace({
           pathname: "/room/[code]/lobby",
           params: { code, name: trimmed },

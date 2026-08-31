@@ -126,7 +126,7 @@ export function startVoting(code: string, creatorVoterId: string) {
 export type RoomItem = {
   id: string;
   title: string;
-  addedBy: { voterId: string; name: string } | null;
+  addedBy: { name: string } | null;
 };
 
 export type RoomResponse = {
@@ -151,9 +151,10 @@ export function getRoom(code: string, voterId?: string) {
 // --- Participant endpoints ---
 
 export type Participant = {
-  voterId: string;
+  participantId: string;
   name: string;
   isCreator: boolean;
+  isYou: boolean;
 };
 
 export function joinRoom(code: string, body: { voterId: string; voterName: string }) {
@@ -163,8 +164,9 @@ export function joinRoom(code: string, body: { voterId: string; voterName: strin
   });
 }
 
-export function getParticipants(code: string) {
-  return request<{ participants: Participant[] }>(`/rooms/${code}/participants`);
+export function getParticipants(code: string, voterId?: string) {
+  const params = voterId ? `?voterId=${encodeURIComponent(voterId)}` : "";
+  return request<{ participants: Participant[] }>(`/rooms/${code}/participants${params}`);
 }
 
 // --- Vote endpoints ---
@@ -234,9 +236,10 @@ export type RankResultsResponse =
       mode: "rank";
       topic: string;
       players: {
-        voterId: string;
+        participantId: string;
         name: string;
         isCreator: boolean;
+        isYou: boolean;
         rankings: { rank: number; itemId: string; title: string }[];
       }[];
     }
@@ -271,8 +274,9 @@ export type ResultsResponse =
   | MltResultsPending
   | TierResultsResponse;
 
-export function getResults(code: string) {
-  return request<ResultsResponse>(`/rooms/${code}/results`);
+export function getResults(code: string, voterId?: string) {
+  const params = voterId ? `?voterId=${encodeURIComponent(voterId)}` : "";
+  return request<ResultsResponse>(`/rooms/${code}/results${params}`);
 }
 
 export function revealResults(code: string, creatorVoterId: string) {
@@ -292,7 +296,7 @@ export type BracketMatchup = {
   winner: { id: string; title: string } | null;
   isBye: boolean;
   decidedByTiebreak: boolean;
-  voteBreakdown?: { voterId: string; voterName: string; pickedItemId: string }[];
+  voteBreakdown?: { voterName: string; pickedItemId: string; isYou: boolean }[];
 };
 
 export type BracketRound = {
@@ -368,7 +372,7 @@ export type SubmitMltVoteBody = {
   itemId: string;
   voterId: string;
   voterName: string;
-  targetVoterId: string;
+  targetParticipantId: string;
 };
 
 export type SubmitMltVoteResponse = {
@@ -387,15 +391,16 @@ export type MltPromptResult = {
   itemId: string;
   text: string;
   sortOrder: number;
-  tallies: { targetVoterId: string; name: string; count: number }[];
-  winners: { voterId: string; name: string }[];
+  tallies: { targetParticipantId: string; name: string; count: number }[];
+  winners: { participantId: string; name: string }[];
   totalVotes: number;
 };
 
 export type MltLeaderboardEntry = {
-  voterId: string;
+  participantId: string;
   name: string;
   wins: number;
+  isYou: boolean;
 };
 
 export type MltResultsRevealed = {
@@ -441,9 +446,10 @@ export type TierConsensusRow = {
 };
 
 export type TierPlayerBoard = {
-  voterId: string;
+  participantId: string;
   name: string;
   isCreator: boolean;
+  isYou: boolean;
   placements: { itemId: string; title: string; tier: Tier }[];
 };
 

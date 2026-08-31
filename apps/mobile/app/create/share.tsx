@@ -29,6 +29,7 @@ import {
   type RoomItem,
 } from "../../lib/api";
 import { clearActiveRoom } from "../../lib/storage";
+import { usePolling } from "../../lib/usePolling";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function ShareScreen() {
@@ -44,28 +45,21 @@ export default function ShareScreen() {
   const [currentItem, setCurrentItem] = useState("");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [topic, setTopic] = useState("");
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const inputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const voterId = await getVoterId();
-        const room = await getRoom(code, voterId);
-        setItems(room.items);
-        if (room.mode) setMode(room.mode);
-        setAllowSuggestions(room.allowSuggestions);
-        if (room.topic) setTopic(room.topic);
+  usePolling(async () => {
+    try {
+      const voterId = await getVoterId();
+      const room = await getRoom(code, voterId);
+      setItems(room.items);
+      if (room.mode) setMode(room.mode);
+      setAllowSuggestions(room.allowSuggestions);
+      if (room.topic) setTopic(room.topic);
 
-        const data = await getParticipants(code);
-        setParticipants(data.participants);
-      } catch {}
-    };
-
-    poll();
-    intervalRef.current = setInterval(poll, 3000);
-    return () => clearInterval(intervalRef.current);
-  }, [code]);
+      const data = await getParticipants(code);
+      setParticipants(data.participants);
+    } catch {}
+  }, 5000);
 
   // Save active room on mount
   useEffect(() => {
@@ -154,7 +148,6 @@ export default function ShareScreen() {
       const voterId = await getVoterId();
       await closeRoom(code, voterId);
       await clearActiveRoom();
-      clearInterval(intervalRef.current);
       router.replace("/");
     } catch (e: any) {
       Alert.alert("Error", e.message);
@@ -334,7 +327,7 @@ export default function ShareScreen() {
           </Text>
           <View style={styles.participantRow}>
             {participants.map((p) => (
-              <View key={p.voterId} style={styles.participantChip}>
+              <View key={p.participantId} style={styles.participantChip}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
                     {p.name.charAt(0).toUpperCase()}

@@ -9,8 +9,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { colors, spacing, radius, typography, shadows } from "../lib/theme";
 
-type Tally = { targetVoterId: string; name: string; count: number };
-type Winner = { voterId: string; name: string };
+type Tally = { targetParticipantId: string; name: string; count: number };
+type Winner = { participantId: string; name: string };
 
 type Props = {
   promptText: string;
@@ -50,7 +50,9 @@ export default function MltRevealCard({
   // Non-zero tallies first, alphabetical secondary (server already sorts; reuse)
   const winnerNames = winners.map((w) => w.name).join(" & ");
   const winnerCount = winners.length > 0 ? tallies[0].count : 0;
-  const runnersUp = tallies.filter((t) => !winners.some((w) => w.voterId === t.targetVoterId));
+  const runnersUp = tallies.filter(
+    (t) => !winners.some((w) => w.participantId === t.targetParticipantId)
+  );
 
   return (
     <View style={styles.wrapper}>
