@@ -18,7 +18,7 @@ mltPrompts.get("/prompts", (c) => {
 mlt.post("/:code/mlt-votes", async (c) => {
   const code = c.req.param("code").toUpperCase();
   const body = await c.req.json();
-  const { itemId, voterId, voterName, targetVoterId } = body;
+  const { itemId, voterId, voterName, targetParticipantId } = body;
 
   if (!itemId || typeof itemId !== "string") {
     return validationError("itemId is required");
@@ -29,8 +29,8 @@ mlt.post("/:code/mlt-votes", async (c) => {
   if (!voterName || typeof voterName !== "string" || voterName.length < 1 || voterName.length > 30) {
     return validationError("voterName is required and must be 1-30 characters");
   }
-  if (!targetVoterId || typeof targetVoterId !== "string") {
-    return validationError("targetVoterId is required");
+  if (!targetParticipantId || typeof targetParticipantId !== "string") {
+    return validationError("targetParticipantId is required");
   }
 
   const db = c.env.DB;
@@ -50,10 +50,10 @@ mlt.post("/:code/mlt-votes", async (c) => {
     .first<{ voter_id: string; voter_name: string }>();
   if (!voter) return validationError("Voter is not a participant of this room");
 
-  // Verify the target is also a participant — and grab their current name
+  // Resolve the target by public participant id — clients never see voter ids.
   const target = await db
-    .prepare("SELECT voter_id, voter_name FROM participants WHERE room_id = ? AND voter_id = ?")
-    .bind(room.id, targetVoterId)
+    .prepare("SELECT voter_id, voter_name FROM participants WHERE room_id = ? AND id = ?")
+    .bind(room.id, targetParticipantId)
     .first<{ voter_id: string; voter_name: string }>();
   if (!target) return validationError("Target is not a participant of this room");
 
@@ -75,7 +75,7 @@ mlt.post("/:code/mlt-votes", async (c) => {
       .prepare(
         "UPDATE mlt_votes SET target_voter_id = ?, target_voter_name = ?, voter_name = ? WHERE id = ?"
       )
-      .bind(targetVoterId, target.voter_name, voterName.trim(), existing.id)
+      .bind(target.voter_id, target.voter_name, voterName.trim(), existing.id)
       .run();
   } else {
     await db
@@ -88,7 +88,7 @@ mlt.post("/:code/mlt-votes", async (c) => {
         itemId,
         voterId,
         voterName.trim(),
-        targetVoterId,
+        target.voter_id,
         target.voter_name
       )
       .run();
@@ -119,10 +119,13 @@ async function maybeReveal(db: D1Database, roomId: string, totalItems: number) {
     .bind(roomId)
     .first<{ count: number }>();
 
+  // Only registered participants count toward completion.
   const completed = await db
     .prepare(
       `SELECT COUNT(*) as completed FROM (
-        SELECT voter_id FROM mlt_votes WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+        SELECT v.voter_id FROM mlt_votes v
+        JOIN participants p ON p.room_id = v.room_id AND p.voter_id = v.voter_id
+        WHERE v.room_id = ? GROUP BY v.voter_id HAVING COUNT(*) >= ?
       )`
     )
     .bind(roomId, totalItems)

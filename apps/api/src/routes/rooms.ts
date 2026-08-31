@@ -336,7 +336,7 @@ rooms.get("/:code", async (c) => {
   const isCreator = voterId && voterId === room.creator_voter_id;
 
   // In open status: creator always sees items; participants see items only if suggestions enabled
-  let items: { id: string; title: string; addedBy: { voterId: string; name: string } | null }[] = [];
+  let items: { id: string; title: string; addedBy: { name: string } | null }[] = [];
   const showItemsForVoteMode =
     room.mode === "vote" &&
     (room.status !== "open" || isCreator || room.allow_suggestions);
@@ -357,9 +357,7 @@ rooms.get("/:code", async (c) => {
     items = allItems.map((item) => ({
       id: item.id,
       title: item.title,
-      addedBy: item.added_by_voter_id
-        ? { voterId: item.added_by_voter_id, name: item.added_by_name! }
-        : null,
+      addedBy: item.added_by_voter_id ? { name: item.added_by_name! } : null,
     }));
   }
 
@@ -393,8 +391,17 @@ rooms.get("/:code", async (c) => {
     if (room.mode === "mlt") {
       const mltVotes = await getMltVotesByVoter(db, room.id, voterId);
       const myMltVotes: Record<string, string> = {};
-      for (const v of mltVotes) {
-        myMltVotes[v.item_id] = v.target_voter_id;
+      if (mltVotes.length > 0) {
+        // Speak public participant ids to the client, never raw voter ids.
+        const { results: parts } = await db
+          .prepare("SELECT id, voter_id FROM participants WHERE room_id = ?")
+          .bind(room.id)
+          .all<{ id: string; voter_id: string }>();
+        const participantIdByVoter = new Map(parts.map((p) => [p.voter_id, p.id]));
+        for (const v of mltVotes) {
+          const targetId = participantIdByVoter.get(v.target_voter_id);
+          if (targetId) myMltVotes[v.item_id] = targetId;
+        }
       }
       response.myMltVotes = myMltVotes;
     }
@@ -428,6 +435,12 @@ rooms.post("/:code/join", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
+  if (room.status === "closed") {
+    return invalidStatus("This room has been closed by the host");
+  }
+  if (room.status === "revealed") {
+    return invalidStatus("Voting has already ended for this room");
+  }
 
   // Upsert: insert or update name if already joined
   const existing = await db
@@ -451,23 +464,28 @@ rooms.post("/:code/join", async (c) => {
 });
 
 // GET /api/rooms/:code/participants — List who has joined
+// voter_id is the only credential in the system, so it must never appear in
+// a response. Participants are identified by their public participant id;
+// pass ?voterId= to have your own row flagged with isYou.
 rooms.get("/:code/participants", async (c) => {
   const code = c.req.param("code").toUpperCase();
+  const voterId = c.req.query("voterId");
 
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
 
   const { results: rows } = await db
-    .prepare("SELECT voter_id, voter_name, joined_at FROM participants WHERE room_id = ? ORDER BY joined_at ASC")
+    .prepare("SELECT id, voter_id, voter_name, joined_at FROM participants WHERE room_id = ? ORDER BY joined_at ASC")
     .bind(room.id)
-    .all<{ voter_id: string; voter_name: string; joined_at: string }>();
+    .all<{ id: string; voter_id: string; voter_name: string; joined_at: string }>();
 
   return Response.json({
     participants: rows.map((r) => ({
-      voterId: r.voter_id,
+      participantId: r.id,
       name: r.voter_name,
       isCreator: r.voter_id === room.creator_voter_id,
+      isYou: !!voterId && r.voter_id === voterId,
     })),
   });
 });
@@ -523,6 +541,9 @@ rooms.post("/:code/close", async (c) => {
   if (!room) return notFound();
   if (room.creator_voter_id !== creatorVoterId) return notCreator();
   if (room.status === "closed") return invalidStatus("Room is already closed");
+  if (room.status === "revealed") {
+    return invalidStatus("Results are already revealed — closing would hide them");
+  }
 
   await db
     .prepare("UPDATE rooms SET status = 'closed' WHERE id = ?")

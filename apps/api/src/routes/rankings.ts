@@ -23,6 +23,12 @@ rankings.get("/:code/next-item", async (c) => {
   if (room.mode !== "rank") return invalidStatus("This room is not a blind rank room");
   if (room.status !== "voting") return invalidStatus("Room is not in voting status");
 
+  const participant = await db
+    .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
+    .bind(room.id, voterId)
+    .first();
+  if (!participant) return validationError("You must join the room before playing");
+
   const item = await getNextRankItem(db, room.id, voterId);
   const placed = (await getRankingsByRoomAndVoter(db, room.id, voterId)).length;
 
@@ -60,6 +66,13 @@ rankings.post("/:code/rankings", async (c) => {
   if (room.status !== "voting") {
     return invalidStatus("Rankings can only be submitted while voting is open");
   }
+
+  // Verify the voter is a participant of this room.
+  const participant = await db
+    .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
+    .bind(room.id, voterId)
+    .first();
+  if (!participant) return validationError("You must join the room before playing");
 
   // Verify item belongs to this room.
   const item = await db
@@ -111,10 +124,13 @@ async function maybeRevealRank(db: D1Database, roomId: string) {
     .bind(roomId)
     .first<{ count: number }>();
 
+  // Only registered participants count toward completion.
   const completed = await db
     .prepare(
       `SELECT COUNT(*) as completed FROM (
-        SELECT voter_id FROM rankings WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= 5
+        SELECT r.voter_id FROM rankings r
+        JOIN participants p ON p.room_id = r.room_id AND p.voter_id = r.voter_id
+        WHERE r.room_id = ? GROUP BY r.voter_id HAVING COUNT(*) >= 5
       )`
     )
     .bind(roomId)

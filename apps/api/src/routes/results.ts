@@ -149,10 +149,10 @@ results.get("/:code/results", async (c) => {
     return getRankResults(c, db, room, voterId);
   }
   if (room.mode === "bracket") {
-    return getBracketResults(c, db, room);
+    return getBracketResults(c, db, room, voterId);
   }
   if (room.mode === "mlt") {
-    return getMltResults(c, db, room);
+    return getMltResults(c, db, room, voterId);
   }
   if (room.mode === "tier") {
     return getTierResults(c, db, room, voterId);
@@ -162,19 +162,21 @@ results.get("/:code/results", async (c) => {
 
 async function getVoteResults(c: any, db: D1Database, room: Room) {
   if (room.status !== "revealed") {
-    // Return progress instead
+    // Return progress instead. Only registered participants count.
     const totalItems = await getItemCount(db, room.id);
     const result = await db
       .prepare(
         `SELECT COUNT(*) as completed FROM (
-          SELECT voter_id FROM votes WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+          SELECT v.voter_id FROM votes v
+          JOIN participants p ON p.room_id = v.room_id AND p.voter_id = v.voter_id
+          WHERE v.room_id = ? GROUP BY v.voter_id HAVING COUNT(*) >= ?
         )`
       )
       .bind(room.id, totalItems)
       .first<{ completed: number }>();
 
     const totalVoters = await db
-      .prepare("SELECT COUNT(DISTINCT voter_id) as count FROM votes WHERE room_id = ?")
+      .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
       .bind(room.id)
       .first<{ count: number }>();
 
@@ -243,7 +245,9 @@ async function getRankResults(
     const completed = await db
       .prepare(
         `SELECT COUNT(*) as completed FROM (
-          SELECT voter_id FROM rankings WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= 5
+          SELECT r.voter_id FROM rankings r
+          JOIN participants p ON p.room_id = r.room_id AND p.voter_id = r.voter_id
+          WHERE r.room_id = ? GROUP BY r.voter_id HAVING COUNT(*) >= 5
         )`
       )
       .bind(room.id)
@@ -263,24 +267,26 @@ async function getRankResults(
 
   const participants = await db
     .prepare(
-      "SELECT voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+      "SELECT id, voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
     )
     .bind(room.id)
-    .all<{ voter_id: string; voter_name: string }>();
+    .all<{ id: string; voter_id: string; voter_name: string }>();
 
   type PlayerRow = {
-    voterId: string;
+    participantId: string;
     name: string;
     isCreator: boolean;
+    isYou: boolean;
     rankings: { rank: number; itemId: string; title: string }[];
   };
 
   const byVoter = new Map<string, PlayerRow>();
   for (const p of participants.results) {
     byVoter.set(p.voter_id, {
-      voterId: p.voter_id,
+      participantId: p.id,
       name: p.voter_name,
       isCreator: p.voter_id === room.creator_voter_id,
+      isYou: !!voterId && p.voter_id === voterId,
       rankings: [],
     });
   }
@@ -303,8 +309,7 @@ async function getRankResults(
   }
 
   players.sort((a, b) => {
-    if (voterId && a.voterId === voterId) return -1;
-    if (voterId && b.voterId === voterId) return 1;
+    if (a.isYou !== b.isYou) return a.isYou ? -1 : 1;
     if (a.isCreator && !b.isCreator) return -1;
     if (b.isCreator && !a.isCreator) return 1;
     return a.name.localeCompare(b.name);
@@ -318,7 +323,12 @@ async function getRankResults(
   });
 }
 
-async function getBracketResults(c: any, db: D1Database, room: Room) {
+async function getBracketResults(
+  c: any,
+  db: D1Database,
+  room: Room,
+  voterId: string | undefined
+) {
   if (room.status !== "revealed") {
     // Mirror the rank "not yet revealed" shape, with mode discriminator.
     const currentRound = await getCurrentRound(db, room.id);
@@ -350,13 +360,13 @@ async function getBracketResults(c: any, db: D1Database, room: Room) {
 
   const allMatchups = await getMatchupsByRoom(db, room.id);
   const allVotes = await getMatchupVotesByRoom(db, room.id);
-  const votesByMatchup = new Map<string, { voterId: string; voterName: string; pickedItemId: string }[]>();
+  const votesByMatchup = new Map<string, { voterName: string; pickedItemId: string; isYou: boolean }[]>();
   for (const v of allVotes) {
     if (!votesByMatchup.has(v.matchup_id)) votesByMatchup.set(v.matchup_id, []);
     votesByMatchup.get(v.matchup_id)!.push({
-      voterId: v.voter_id,
       voterName: v.voter_name,
       pickedItemId: v.picked_item_id,
+      isYou: !!voterId && v.voter_id === voterId,
     });
   }
 
@@ -398,7 +408,12 @@ async function getBracketResults(c: any, db: D1Database, room: Room) {
   });
 }
 
-async function getMltResults(c: any, db: D1Database, room: Room) {
+async function getMltResults(
+  c: any,
+  db: D1Database,
+  room: Room,
+  voterId: string | undefined
+) {
   if (room.status !== "revealed") {
     const totalParticipants = await db
       .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
@@ -410,7 +425,9 @@ async function getMltResults(c: any, db: D1Database, room: Room) {
     const completed = await db
       .prepare(
         `SELECT COUNT(*) as completed FROM (
-          SELECT voter_id FROM mlt_votes WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+          SELECT v.voter_id FROM mlt_votes v
+          JOIN participants p ON p.room_id = v.room_id AND p.voter_id = v.voter_id
+          WHERE v.room_id = ? GROUP BY v.voter_id HAVING COUNT(*) >= ?
         )`
       )
       .bind(room.id, totalItems)
@@ -436,10 +453,10 @@ async function getMltResults(c: any, db: D1Database, room: Room) {
 
   const { results: participants } = await db
     .prepare(
-      "SELECT voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+      "SELECT id, voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
     )
     .bind(room.id)
-    .all<{ voter_id: string; voter_name: string }>();
+    .all<{ id: string; voter_id: string; voter_name: string }>();
 
   type ItemTallies = Map<string, { name: string; count: number }>;
   const talliesByItem = new Map<string, ItemTallies>();
@@ -463,10 +480,13 @@ async function getMltResults(c: any, db: D1Database, room: Room) {
   const prompts = items.map((item) => {
     const itemTallies = talliesByItem.get(item.id) ?? new Map();
 
+    // Internal tallies stay keyed by voter_id; only the public participant id
+    // leaves the server.
     const fullTallies = participants.map((p) => {
       const t = itemTallies.get(p.voter_id);
       return {
         targetVoterId: p.voter_id,
+        targetParticipantId: p.id,
         name: t?.name ?? p.voter_name,
         count: t?.count ?? 0,
       };
@@ -479,15 +499,11 @@ async function getMltResults(c: any, db: D1Database, room: Room) {
 
     const totalVotes = fullTallies.reduce((sum, t) => sum + t.count, 0);
     const topCount = fullTallies[0]?.count ?? 0;
-    const winners =
-      topCount === 0
-        ? []
-        : fullTallies
-            .filter((t) => t.count === topCount)
-            .map((t) => ({ voterId: t.targetVoterId, name: t.name }));
+    const topTallies =
+      topCount === 0 ? [] : fullTallies.filter((t) => t.count === topCount);
 
-    for (const w of winners) {
-      const row = winsByVoter.get(w.voterId);
+    for (const w of topTallies) {
+      const row = winsByVoter.get(w.targetVoterId);
       if (row) row.wins += 1;
     }
 
@@ -495,14 +511,26 @@ async function getMltResults(c: any, db: D1Database, room: Room) {
       itemId: item.id,
       text: item.title,
       sortOrder: item.sort_order,
-      tallies: fullTallies,
-      winners,
+      tallies: fullTallies.map((t) => ({
+        targetParticipantId: t.targetParticipantId,
+        name: t.name,
+        count: t.count,
+      })),
+      winners: topTallies.map((t) => ({
+        participantId: t.targetParticipantId,
+        name: t.name,
+      })),
       totalVotes,
     };
   });
 
-  const leaderboard = [...winsByVoter.entries()]
-    .map(([voterId, row]) => ({ voterId, name: row.name, wins: row.wins }))
+  const leaderboard = participants
+    .map((p) => ({
+      participantId: p.id,
+      name: winsByVoter.get(p.voter_id)?.name ?? p.voter_name,
+      wins: winsByVoter.get(p.voter_id)?.wins ?? 0,
+      isYou: !!voterId && p.voter_id === voterId,
+    }))
     .sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
       return a.name.localeCompare(b.name);
@@ -542,7 +570,9 @@ async function getTierResults(
     const completed = await db
       .prepare(
         `SELECT COUNT(*) as completed FROM (
-          SELECT voter_id FROM tier_placements WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+          SELECT t.voter_id FROM tier_placements t
+          JOIN participants p ON p.room_id = t.room_id AND p.voter_id = t.voter_id
+          WHERE t.room_id = ? GROUP BY t.voter_id HAVING COUNT(*) >= ?
         )`
       )
       .bind(room.id, totalItems)
@@ -563,10 +593,10 @@ async function getTierResults(
 
   const participants = await db
     .prepare(
-      "SELECT voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+      "SELECT id, voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
     )
     .bind(room.id)
-    .all<{ voter_id: string; voter_name: string }>();
+    .all<{ id: string; voter_id: string; voter_name: string }>();
 
   // --- Consensus: average each item's tier value across all placements. ---
   const sumByItem = new Map<string, { sum: number; count: number }>();
@@ -600,17 +630,19 @@ async function getTierResults(
 
   // --- Per-player boards. ---
   type PlayerRow = {
-    voterId: string;
+    participantId: string;
     name: string;
     isCreator: boolean;
+    isYou: boolean;
     placements: { itemId: string; title: string; tier: string }[];
   };
   const byVoter = new Map<string, PlayerRow>();
   for (const p of participants.results) {
     byVoter.set(p.voter_id, {
-      voterId: p.voter_id,
+      participantId: p.id,
       name: p.voter_name,
       isCreator: p.voter_id === room.creator_voter_id,
+      isYou: !!voterId && p.voter_id === voterId,
       placements: [],
     });
   }
@@ -635,8 +667,7 @@ async function getTierResults(
   }
 
   players.sort((a, b) => {
-    if (voterId && a.voterId === voterId) return -1;
-    if (voterId && b.voterId === voterId) return 1;
+    if (a.isYou !== b.isYou) return a.isYou ? -1 : 1;
     if (a.isCreator && !b.isCreator) return -1;
     if (b.isCreator && !a.isCreator) return 1;
     return a.name.localeCompare(b.name);

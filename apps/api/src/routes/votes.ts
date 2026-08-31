@@ -40,6 +40,13 @@ votes.post("/:code/votes", async (c) => {
     return validationError("This is a tier list room — use /tiers instead of /votes");
   }
 
+  // Verify the voter is a participant of this room
+  const participant = await db
+    .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
+    .bind(room.id, voterId)
+    .first();
+  if (!participant) return validationError("You must join the room before voting");
+
   // Verify item belongs to this room
   const item = await db
     .prepare("SELECT id FROM items WHERE id = ? AND room_id = ?")
@@ -99,10 +106,14 @@ async function maybeReveal(
     .bind(roomId)
     .first<{ count: number }>();
 
+  // Only registered participants count toward completion — stray vote rows
+  // from non-participants must not trigger an early reveal.
   const completed = await db
     .prepare(
       `SELECT COUNT(*) as completed FROM (
-        SELECT voter_id FROM votes WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+        SELECT v.voter_id FROM votes v
+        JOIN participants p ON p.room_id = v.room_id AND p.voter_id = v.voter_id
+        WHERE v.room_id = ? GROUP BY v.voter_id HAVING COUNT(*) >= ?
       )`
     )
     .bind(roomId, totalItems)

@@ -100,10 +100,13 @@ async function maybeRevealTier(
     .bind(roomId)
     .first<{ count: number }>();
 
+  // Only registered participants count toward completion.
   const completed = await db
     .prepare(
       `SELECT COUNT(*) as completed FROM (
-        SELECT voter_id FROM tier_placements WHERE room_id = ? GROUP BY voter_id HAVING COUNT(*) >= ?
+        SELECT t.voter_id FROM tier_placements t
+        JOIN participants p ON p.room_id = t.room_id AND p.voter_id = t.voter_id
+        WHERE t.room_id = ? GROUP BY t.voter_id HAVING COUNT(*) >= ?
       )`
     )
     .bind(roomId, totalItems)

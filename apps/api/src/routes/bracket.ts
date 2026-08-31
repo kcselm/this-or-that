@@ -53,13 +53,13 @@ bracket.get("/:code/bracket", async (c) => {
   // round (anti-strategy). When the room is revealed, currentRound is null
   // so all rounds count as past.
   const allVotes = await getMatchupVotesByRoom(db, room.id);
-  const votesByMatchup = new Map<string, { voterId: string; voterName: string; pickedItemId: string }[]>();
+  const votesByMatchup = new Map<string, { voterName: string; pickedItemId: string; isYou: boolean }[]>();
   for (const v of allVotes) {
     if (!votesByMatchup.has(v.matchup_id)) votesByMatchup.set(v.matchup_id, []);
     votesByMatchup.get(v.matchup_id)!.push({
-      voterId: v.voter_id,
       voterName: v.voter_name,
       pickedItemId: v.picked_item_id,
+      isYou: !!voterId && v.voter_id === voterId,
     });
   }
 
