@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import SwipeCard from "../../../components/SwipeCard";
 import { getVoterId } from "../../../lib/storage";
 import { getRoom, submitVote } from "../../../lib/api";
+import { showAlert } from "../../../lib/alert";
 import { seededShuffle } from "../../../lib/shuffle";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
@@ -24,6 +25,8 @@ export default function SwipeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [swiping, setSwiping] = useState(false);
+  // Bumped when a vote fails so the flown-away card remounts at center.
+  const [cardNonce, setCardNonce] = useState(0);
 
   const loadRoom = useCallback(async () => {
     setLoading(true);
@@ -48,6 +51,17 @@ export default function SwipeScreen() {
   useEffect(() => {
     loadRoom();
   }, [loadRoom]);
+
+  // Resuming after already voting on everything: go straight to waiting.
+  // (Mid-session, the last swipe's success handler navigates instead.)
+  useEffect(() => {
+    if (!loading && !error && items.length > 0 && currentIndex >= items.length) {
+      router.replace({
+        pathname: "/room/[code]/waiting",
+        params: { code, name: name ?? "", isCreator: isCreator ?? "false" },
+      });
+    }
+  }, [loading, error, items.length, currentIndex, code, name, isCreator, router]);
 
   const handleSwipe = useCallback(
     async (direction: "yes" | "no") => {
@@ -77,7 +91,10 @@ export default function SwipeScreen() {
           }
         }, 250);
       } catch (e: any) {
-        Alert.alert("Error", e.message);
+        // The card already animated off-screen — remount it at center so the
+        // user can swipe again once they've seen the error.
+        setCardNonce((n) => n + 1);
+        showAlert("Vote not saved", e.message);
         setSwiping(false);
       }
     },
@@ -108,9 +125,10 @@ export default function SwipeScreen() {
   }
 
   if (currentIndex >= items.length) {
+    // Navigation to the waiting screen is handled by the effect above.
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.doneText}>All done!</Text>
+        <ActivityIndicator size="large" color={colors.coral} />
       </View>
     );
   }
@@ -133,7 +151,7 @@ export default function SwipeScreen() {
 
       <View style={styles.cardContainer}>
         <SwipeCard
-          key={items[currentIndex].id}
+          key={`${items[currentIndex].id}:${cardNonce}`}
           title={items[currentIndex].title}
           onSwipe={handleSwipe}
         />

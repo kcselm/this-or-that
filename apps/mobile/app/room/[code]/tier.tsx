@@ -6,8 +6,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Pressable,
-  Alert,
 } from "react-native";
+import { showAlert } from "../../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TierChip from "../../../components/TierChip";
@@ -172,7 +172,7 @@ export default function TierScreen() {
       await clearTierDraft(code);
       navigateToWaiting();
     } catch (e: any) {
-      Alert.alert("Error", e instanceof ApiError ? e.message : "Couldn't lock in your board.");
+      showAlert("Error", e instanceof ApiError ? e.message : "Couldn't lock in your board.");
       setSubmitting(false);
     }
   };

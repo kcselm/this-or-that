@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -42,30 +43,34 @@ export default function MltPlayScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const voterId = await getVoterId();
-        setMyVoterId(voterId);
-        const [roomRes, partRes] = await Promise.all([
-          getRoom(code, voterId),
-          getParticipants(code, voterId),
-        ]);
-        setRoom(roomRes);
-        setParticipants(partRes.participants);
-        const my = roomRes.myMltVotes ?? {};
-        setMyMltVotes(my);
-        // Resume: skip past already-voted prompts
-        const items = roomRes.items;
-        const firstUnvoted = items.findIndex((it) => !my[it.id]);
-        setCurrentIndex(firstUnvoted === -1 ? items.length : firstUnvoted);
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Couldn't load the room.");
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const loadRoom = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const voterId = await getVoterId();
+      setMyVoterId(voterId);
+      const [roomRes, partRes] = await Promise.all([
+        getRoom(code, voterId),
+        getParticipants(code, voterId),
+      ]);
+      setRoom(roomRes);
+      setParticipants(partRes.participants);
+      const my = roomRes.myMltVotes ?? {};
+      setMyMltVotes(my);
+      // Resume: skip past already-voted prompts
+      const items = roomRes.items;
+      const firstUnvoted = items.findIndex((it) => !my[it.id]);
+      setCurrentIndex(firstUnvoted === -1 ? items.length : firstUnvoted);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't load the room.");
+    } finally {
+      setLoading(false);
+    }
   }, [code]);
+
+  useEffect(() => {
+    loadRoom();
+  }, [loadRoom]);
 
   // If the room is already revealed by the time we open the screen, route to results
   useEffect(() => {
@@ -123,9 +128,17 @@ export default function MltPlayScreen() {
     );
   }
   if (error) {
+    // A retry reloads the room and resumes at the first unvoted prompt, so
+    // this recovers from both load failures and failed vote submissions.
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+          onPress={loadRoom}
+        >
+          <Text style={styles.retryText}>Try Again</Text>
+        </Pressable>
       </View>
     );
   }
@@ -210,4 +223,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   errorText: { ...typography.body, color: colors.slate, textAlign: "center" },
+  retryButton: {
+    backgroundColor: colors.coral,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    marginTop: spacing.lg,
+  },
+  retryButtonPressed: {
+    backgroundColor: colors.coralDark,
+  },
+  retryText: {
+    color: colors.warmWhite,
+    ...typography.bodyBold,
+  },
 });

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, {
   FadeInDown,
@@ -11,6 +11,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { getStatus, revealResults, getRoom, ApiError, type StatusResponse } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
+import { usePolling } from "../../../lib/usePolling";
+import { showAlert } from "../../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 function PulsingRing() {
@@ -50,55 +52,48 @@ export default function WaitingScreen() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
   const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier">("vote");
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const isCreator = isCreatorParam === "true";
 
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const data = await getStatus(code);
-        setStatus(data);
-        if (data.isRevealed) {
-          clearInterval(intervalRef.current);
-          router.replace({
-            pathname: "/room/[code]/results",
-            params: { code, name },
-          });
-          return;
-        }
-        // Bracket: when the server advances the round past lastVotedRound,
-        // hop the player to the round-reveal screen.
-        if (
-          mode === "bracket" &&
-          lastVotedRound &&
-          typeof data.currentRound === "number" &&
-          data.currentRound > Number(lastVotedRound)
-        ) {
-          clearInterval(intervalRef.current);
-          router.replace({
-            pathname: "/room/[code]/round-reveal",
-            params: {
-              code,
-              name,
-              isCreator: isCreatorParam ?? "false",
-              completedRound: lastVotedRound,
-            },
-          });
-        }
-      } catch (e) {
-        if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
-          clearInterval(intervalRef.current);
-          Alert.alert("Room Expired", "This room no longer exists.", [
-            { text: "OK", onPress: () => router.replace("/") },
-          ]);
-        }
+  usePolling(async (stop) => {
+    try {
+      const data = await getStatus(code);
+      setStatus(data);
+      if (data.isRevealed) {
+        stop();
+        router.replace({
+          pathname: "/room/[code]/results",
+          params: { code, name },
+        });
+        return;
       }
-    };
-
-    poll();
-    intervalRef.current = setInterval(poll, 3000);
-    return () => clearInterval(intervalRef.current);
-  }, [code, name, router, mode, lastVotedRound, isCreatorParam]);
+      // Bracket: when the server advances the round past lastVotedRound,
+      // hop the player to the round-reveal screen.
+      if (
+        mode === "bracket" &&
+        lastVotedRound &&
+        typeof data.currentRound === "number" &&
+        data.currentRound > Number(lastVotedRound)
+      ) {
+        stop();
+        router.replace({
+          pathname: "/room/[code]/round-reveal",
+          params: {
+            code,
+            name,
+            isCreator: isCreatorParam ?? "false",
+            completedRound: lastVotedRound,
+          },
+        });
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
+        stop();
+        showAlert("Room Expired", "This room no longer exists.", () =>
+          router.replace("/")
+        );
+      }
+    }
+  }, 3000);
 
   useEffect(() => {
     (async () => {
@@ -185,7 +180,7 @@ export default function WaitingScreen() {
                   params: { code, name },
                 });
               } catch (e: any) {
-                Alert.alert("Error", e.message);
+                showAlert("Error", e.message);
                 setRevealing(false);
               }
             }}

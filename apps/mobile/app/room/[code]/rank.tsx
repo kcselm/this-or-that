@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  Alert,
 } from "react-native";
+import { showAlert } from "../../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn } from "react-native-reanimated";
@@ -147,7 +147,7 @@ export default function RankScreen() {
         delete copy[placingRank];
         return copy;
       });
-      Alert.alert("Error", e instanceof ApiError ? e.message : "Couldn't submit your placement.");
+      showAlert("Error", e instanceof ApiError ? e.message : "Couldn't submit your placement.");
     } finally {
       setSubmitting(false);
     }

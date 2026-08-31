@@ -6,6 +6,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated"
 import { colors, spacing, radius, typography, shadows } from "../lib/theme"
 import { getActiveRoom, clearActiveRoom, getVoterId, type ActiveRoom } from "../lib/storage"
 import { getRoom } from "../lib/api"
+import { showAlert } from "../lib/alert"
 
 export default function HomeScreen() {
   const router = useRouter()
@@ -24,6 +25,12 @@ export default function HomeScreen() {
         try {
           const voterId = await getVoterId()
           const data = await getRoom(room.code, voterId)
+          if (data.status === "closed") {
+            // Closed rooms have nothing to rejoin — drop the banner.
+            await clearActiveRoom()
+            setActiveRoom(null)
+            return
+          }
           // Room still exists — show the banner
           setActiveRoom({ ...room, topic: data.topic })
         } catch {
@@ -62,13 +69,25 @@ export default function HomeScreen() {
             data.mode === "mlt" ? "/room/[code]/mlt" :
             data.mode === "tier" ? "/room/[code]/tier" :
             "/room/[code]/swipe",
-          params: { code: activeRoom.code, name: activeRoom.name },
+          params: {
+            code: activeRoom.code,
+            name: activeRoom.name,
+            // Without this, a creator who restarts the app loses the
+            // "Reveal Results" button on the waiting screen.
+            isCreator: activeRoom.isCreator ? "true" : "false",
+          },
         })
-      } else {
+      } else if (data.status === "revealed") {
         router.push({
           pathname: "/room/[code]/results",
           params: { code: activeRoom.code, name: activeRoom.name },
         })
+      } else {
+        // Closed — results are gone; clear the banner instead of routing
+        // into a permanent "results aren't ready" loop.
+        await clearActiveRoom()
+        setActiveRoom(null)
+        showAlert("Room Closed", "The host closed this room.")
       }
     } catch {
       await clearActiveRoom()

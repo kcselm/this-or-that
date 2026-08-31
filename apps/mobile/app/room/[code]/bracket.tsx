@@ -5,8 +5,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  Alert,
 } from "react-native";
+import { showAlert } from "../../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn } from "react-native-reanimated";
@@ -139,7 +139,7 @@ export default function BracketScreen() {
       setPending(remaining);
     } catch (e: any) {
       setSelectedItemId(null);
-      Alert.alert("Error", e instanceof ApiError ? e.message : "Couldn't submit your vote.");
+      showAlert("Error", e instanceof ApiError ? e.message : "Couldn't submit your vote.");
     } finally {
       setSubmitting(false);
     }

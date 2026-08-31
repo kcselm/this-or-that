@@ -5,7 +5,6 @@ import {
   TextInput,
   StyleSheet,
   Pressable,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -29,6 +28,7 @@ import {
 } from "../../../lib/api";
 import { getVoterId, saveActiveRoom } from "../../../lib/storage";
 import { usePolling } from "../../../lib/usePolling";
+import { showAlert } from "../../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 function PulsingDot() {
@@ -75,9 +75,9 @@ export default function LobbyScreen() {
 
       if (room.status === "closed") {
         stop();
-        Alert.alert("Room Closed", "The host closed this room.", [
-          { text: "OK", onPress: () => router.replace("/") },
-        ]);
+        showAlert("Room Closed", "The host closed this room.", () =>
+          router.replace("/")
+        );
         return;
       } else if (room.status === "voting") {
         stop();
@@ -105,9 +105,9 @@ export default function LobbyScreen() {
     } catch (e) {
       if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
         stop();
-        Alert.alert("Room Expired", "This room no longer exists.", [
-          { text: "OK", onPress: () => router.replace("/") },
-        ]);
+        showAlert("Room Expired", "This room no longer exists.", () =>
+          router.replace("/")
+        );
       }
     }
   }, 4000);
@@ -115,9 +115,9 @@ export default function LobbyScreen() {
   const handleAddItem = async () => {
     const trimmed = currentItem.trim();
     if (!trimmed) return;
-    if (items.length >= 15) return Alert.alert("Limit", "Maximum 15 items");
+    if (items.length >= 15) return showAlert("Limit", "Maximum 15 items");
     if (items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())) {
-      return Alert.alert("Duplicate", "That item already exists");
+      return showAlert("Duplicate", "That item already exists");
     }
 
     try {
@@ -128,7 +128,7 @@ export default function LobbyScreen() {
       const room = await getRoom(code, voterId);
       setItems(room.items);
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     }
   };
 

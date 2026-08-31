@@ -31,6 +31,7 @@ import {
 import { clearActiveRoom } from "../../lib/storage";
 import { usePolling } from "../../lib/usePolling";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
+import { showAlert } from "../../lib/alert";
 
 export default function ShareScreen() {
   const router = useRouter();
@@ -85,9 +86,9 @@ export default function ShareScreen() {
   const handleAddItem = async () => {
     const trimmed = currentItem.trim();
     if (!trimmed) return;
-    if (items.length >= maxItems) return Alert.alert("Limit", `Maximum ${maxItems} items`);
+    if (items.length >= maxItems) return showAlert("Limit", `Maximum ${maxItems} items`);
     if (items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())) {
-      return Alert.alert("Duplicate", "That item already exists");
+      return showAlert("Duplicate", "That item already exists");
     }
 
     try {
@@ -98,7 +99,7 @@ export default function ShareScreen() {
       const room = await getRoom(code, voterId);
       setItems(room.items);
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     }
   };
 
@@ -109,7 +110,7 @@ export default function ShareScreen() {
       const room = await getRoom(code, voterId);
       setItems(room.items);
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     }
   };
 
@@ -123,7 +124,7 @@ export default function ShareScreen() {
       });
     } catch (e: any) {
       setAllowSuggestions(!value);
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     }
   };
 
@@ -150,13 +151,13 @@ export default function ShareScreen() {
       await clearActiveRoom();
       router.replace("/");
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     }
   };
 
   const handleStart = async () => {
     if (!canStart) {
-      return Alert.alert(
+      return showAlert(
         "Not ready",
         mode === "rank"
           ? "Blind rank rooms need exactly 5 items"
@@ -183,7 +184,7 @@ export default function ShareScreen() {
         params: { code, name, isCreator: "true" },
       });
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     } finally {
       setLoading(false);
     }

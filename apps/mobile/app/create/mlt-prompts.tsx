@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +18,7 @@ import {
   type MltPrompt,
 } from "../../lib/api";
 import { getVoterId } from "../../lib/storage";
+import { showAlert } from "../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 const MAX_PROMPTS = 15;
@@ -43,18 +43,22 @@ export default function MltPromptsScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await getMltPrompts();
-        setLibrary(res.prompts);
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Couldn't load prompt library.");
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const loadLibrary = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getMltPrompts();
+      setLibrary(res.prompts);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't load prompt library.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
 
   const isSelected = (libraryId: string) =>
     selected.some((s) => s.libraryId === libraryId);
@@ -91,7 +95,7 @@ export default function MltPromptsScreen() {
 
   const handleContinue = async () => {
     if (selected.length < 3) {
-      Alert.alert("Need more prompts", "Pick at least 3 prompts to continue.");
+      showAlert("Need more prompts", "Pick at least 3 prompts to continue.");
       return;
     }
     setSaving(true);
@@ -103,7 +107,7 @@ export default function MltPromptsScreen() {
       });
       router.replace({ pathname: "/create/share", params: { code, name, mode } });
     } catch (e) {
-      Alert.alert(
+      showAlert(
         "Couldn't save prompts",
         e instanceof ApiError ? e.message : "Try again."
       );
@@ -124,6 +128,12 @@ export default function MltPromptsScreen() {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.errorText}>{error}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+          onPress={loadLibrary}
+        >
+          <Text style={styles.retryText}>Try Again</Text>
+        </Pressable>
       </View>
     );
   }
@@ -318,4 +328,18 @@ const styles = StyleSheet.create({
   continueText: { ...typography.h3, color: "#fff", fontWeight: "600" },
   disabled: { opacity: 0.4 },
   errorText: { ...typography.body, color: colors.slate, textAlign: "center" },
+  retryButton: {
+    backgroundColor: colors.coral,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    marginTop: spacing.lg,
+  },
+  retryButtonPressed: {
+    backgroundColor: colors.coralDark,
+  },
+  retryText: {
+    color: colors.warmWhite,
+    ...typography.bodyBold,
+  },
 });

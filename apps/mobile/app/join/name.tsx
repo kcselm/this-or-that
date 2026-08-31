@@ -5,12 +5,12 @@ import {
   TextInput,
   StyleSheet,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId, saveActiveRoom } from "../../lib/storage";
+import { showAlert } from "../../lib/alert";
 import { getRoom, joinRoom } from "../../lib/api";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
@@ -22,7 +22,7 @@ export default function NameScreen() {
 
   const handleContinue = async () => {
     const trimmed = name.trim();
-    if (!trimmed) return Alert.alert("Error", "Enter your name");
+    if (!trimmed) return showAlert("Error", "Enter your name");
 
     setLoading(true);
     try {
@@ -31,7 +31,7 @@ export default function NameScreen() {
 
       // The API rejects joins on closed/revealed rooms, so check status first.
       if (room.status === "closed") {
-        Alert.alert("Room Closed", "The host closed this room.");
+        showAlert("Room Closed", "The host closed this room.");
         return;
       }
       if (room.status === "revealed") {
@@ -69,7 +69,7 @@ export default function NameScreen() {
         });
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     } finally {
       setLoading(false);
     }

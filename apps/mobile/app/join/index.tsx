@@ -5,10 +5,10 @@ import {
   TextInput,
   StyleSheet,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { showAlert } from "../../lib/alert";
 import { useRouter } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { getRoom } from "../../lib/api";
@@ -22,7 +22,7 @@ export default function JoinScreen() {
   const handleJoin = async () => {
     const trimmed = code.trim().toUpperCase();
     if (trimmed.length !== 6) {
-      return Alert.alert("Error", "Enter a 6-character room code");
+      return showAlert("Error", "Enter a 6-character room code");
     }
 
     setLoading(true);
@@ -34,7 +34,7 @@ export default function JoinScreen() {
         params: { code: trimmed },
       });
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     } finally {
       setLoading(false);
     }

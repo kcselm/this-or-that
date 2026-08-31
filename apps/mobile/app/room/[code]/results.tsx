@@ -53,16 +53,22 @@ export default function ResultsScreen() {
       const res = await getResults(code, voterId);
       if (!res.revealed) {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
-      } else if ("mode" in res && res.mode === "rank") {
-        setRankData(res);
-      } else if ("mode" in res && res.mode === "bracket") {
-        setBracketData(res as RevealedBracketResults);
-      } else if ("mode" in res && res.mode === "mlt") {
-        setMltData(res as RevealedMltResults);
-      } else if ("mode" in res && res.mode === "tier") {
-        setTierData(res as RevealedTierResults);
       } else {
-        setVoteData(res as RevealedVoteResults);
+        // Only forget the room once we've actually shown its results —
+        // clearing on mount destroyed the rejoin banner for live rooms
+        // whenever this screen was reached early.
+        clearActiveRoom();
+        if ("mode" in res && res.mode === "rank") {
+          setRankData(res);
+        } else if ("mode" in res && res.mode === "bracket") {
+          setBracketData(res as RevealedBracketResults);
+        } else if ("mode" in res && res.mode === "mlt") {
+          setMltData(res as RevealedMltResults);
+        } else if ("mode" in res && res.mode === "tier") {
+          setTierData(res as RevealedTierResults);
+        } else {
+          setVoteData(res as RevealedVoteResults);
+        }
       }
     } catch (e: any) {
       setError(e.message);
@@ -72,7 +78,6 @@ export default function ResultsScreen() {
 
   useEffect(() => {
     loadResults();
-    clearActiveRoom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 

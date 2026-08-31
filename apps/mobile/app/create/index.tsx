@@ -5,11 +5,11 @@ import {
   TextInput,
   StyleSheet,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Switch,
 } from "react-native";
+import { showAlert } from "../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
@@ -37,8 +37,8 @@ export default function CreateRoomScreen() {
     const trimmedTopic = topic.trim();
     const trimmedName = name.trim();
 
-    if (!trimmedTopic) return Alert.alert("Error", "Enter a topic");
-    if (!trimmedName) return Alert.alert("Error", "Enter your name");
+    if (!trimmedTopic) return showAlert("Error", "Enter a topic");
+    if (!trimmedName) return showAlert("Error", "Enter your name");
 
     setLoading(true);
     try {
@@ -62,7 +62,7 @@ export default function CreateRoomScreen() {
         });
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      showAlert("Error", e.message);
     } finally {
       setLoading(false);
     }
