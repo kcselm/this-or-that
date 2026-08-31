@@ -4,14 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
   },
   "dependencies": {
     "hono": "^4"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.2",
     "@cloudflare/workers-types": "^4",
     "typescript": "^5",
+    "vitest": "^4.1.11",
     "wrangler": "^4"
   }
 }
