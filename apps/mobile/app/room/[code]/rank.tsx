@@ -244,6 +244,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
+    // Keep the dragged card above the slots (slots render later in the tree)
+    zIndex: 10,
+    elevation: 10,
   },
   cardWrap: {
     width: "85%",
