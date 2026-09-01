@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, {
@@ -51,11 +51,21 @@ export default function WaitingScreen() {
   }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
-  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier">("vote");
+  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier" | null>(null);
   const isCreator = isCreatorParam === "true";
 
   usePolling(async (stop) => {
     try {
+      // The bracket round-reveal hop below needs the room's mode. Resolve it
+      // inside the poll so a failed lookup retries next tick — a single
+      // silent failure here used to strand bracket players on this screen
+      // for the rest of the game.
+      let currentMode = mode;
+      if (currentMode === null) {
+        currentMode = (await getRoom(code)).mode;
+        setMode(currentMode);
+      }
+
       const data = await getStatus(code);
       setStatus(data);
       if (data.isRevealed) {
@@ -69,7 +79,7 @@ export default function WaitingScreen() {
       // Bracket: when the server advances the round past lastVotedRound,
       // hop the player to the round-reveal screen.
       if (
-        mode === "bracket" &&
+        currentMode === "bracket" &&
         lastVotedRound &&
         typeof data.currentRound === "number" &&
         data.currentRound > Number(lastVotedRound)
@@ -94,15 +104,6 @@ export default function WaitingScreen() {
       }
     }
   }, 3000);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const room = await getRoom(code);
-        setMode(room.mode);
-      } catch {}
-    })();
-  }, [code]);
 
   const completedCount = status?.completedCount ?? 0;
   const totalVoters = status?.totalVoters ?? 0;
