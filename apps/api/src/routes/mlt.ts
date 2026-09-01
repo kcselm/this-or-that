@@ -64,35 +64,25 @@ mlt.post("/:code/mlt-votes", async (c) => {
     .first();
   if (!item) return validationError("Prompt not found in this room");
 
-  // Upsert: insert or update existing vote
-  const existing = await db
-    .prepare("SELECT id FROM mlt_votes WHERE item_id = ? AND voter_id = ?")
-    .bind(itemId, voterId)
-    .first<{ id: string }>();
-
-  if (existing) {
-    await db
-      .prepare(
-        "UPDATE mlt_votes SET target_voter_id = ?, target_voter_name = ?, voter_name = ? WHERE id = ?"
-      )
-      .bind(target.voter_id, target.voter_name, voterName.trim(), existing.id)
-      .run();
-  } else {
-    await db
-      .prepare(
-        "INSERT INTO mlt_votes (id, room_id, item_id, voter_id, voter_name, target_voter_id, target_voter_name) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      )
-      .bind(
-        crypto.randomUUID(),
-        room.id,
-        itemId,
-        voterId,
-        voterName.trim(),
-        target.voter_id,
-        target.voter_name
-      )
-      .run();
-  }
+  // Atomic upsert — see votes.ts; a racing duplicate must update, not 500.
+  await db
+    .prepare(
+      `INSERT INTO mlt_votes (id, room_id, item_id, voter_id, voter_name, target_voter_id, target_voter_name) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(item_id, voter_id) DO UPDATE SET
+         target_voter_id = excluded.target_voter_id,
+         target_voter_name = excluded.target_voter_name,
+         voter_name = excluded.voter_name`
+    )
+    .bind(
+      crypto.randomUUID(),
+      room.id,
+      itemId,
+      voterId,
+      voterName.trim(),
+      target.voter_id,
+      target.voter_name
+    )
+    .run();
 
   // Progress for this voter
   const voterVotes = await db

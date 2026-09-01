@@ -239,6 +239,17 @@ rooms.post("/:code/start", async (c) => {
     }
   }
 
+  // Atomically claim the open→voting transition. A concurrent second start
+  // loses here with a clean 400 instead of double-shuffling a rank room or
+  // 500ing on the bracket's UNIQUE(room_id, round, slot).
+  const claim = await db
+    .prepare("UPDATE rooms SET status = 'voting' WHERE id = ? AND status = 'open'")
+    .bind(room.id)
+    .run();
+  if ((claim.meta.changes ?? 0) === 0) {
+    return invalidStatus("Room has already started voting");
+  }
+
   if (room.mode === "rank") {
     const items = await db
       .prepare("SELECT id FROM items WHERE room_id = ? ORDER BY sort_order ASC")
@@ -254,11 +265,6 @@ rooms.post("/:code/start", async (c) => {
       db
         .prepare("UPDATE items SET presentation_order = ? WHERE id = ?")
         .bind(order, id)
-    );
-    statements.push(
-      db
-        .prepare("UPDATE rooms SET status = 'voting' WHERE id = ?")
-        .bind(room.id)
     );
     await db.batch(statements);
   } else if (room.mode === "bracket") {
@@ -308,18 +314,9 @@ rooms.post("/:code/start", async (c) => {
       );
     }
 
-    statements.push(
-      db.prepare("UPDATE rooms SET status = 'voting' WHERE id = ?").bind(room.id)
-    );
-
     await db.batch(statements);
-  } else {
-    // vote mode: just flip status
-    await db
-      .prepare("UPDATE rooms SET status = 'voting' WHERE id = ?")
-      .bind(room.id)
-      .run();
   }
+  // vote/mlt/tier modes need no extra setup — the claim above flipped status.
 
   return Response.json({ success: true, status: "voting", itemCount, mode: room.mode });
 });

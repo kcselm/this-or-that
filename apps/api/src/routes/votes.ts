@@ -54,26 +54,15 @@ votes.post("/:code/votes", async (c) => {
     .first();
   if (!item) return validationError("Item not found in this room");
 
-  // Upsert: insert or update existing vote
-  const existing = await db
-    .prepare("SELECT id FROM votes WHERE item_id = ? AND voter_id = ?")
-    .bind(itemId, voterId)
-    .first();
-
-  if (existing) {
-    await db
-      .prepare("UPDATE votes SET vote = ?, voter_name = ? WHERE id = ?")
-      .bind(vote, voterName.trim(), existing.id as string)
-      .run();
-  } else {
-    const voteId = crypto.randomUUID();
-    await db
-      .prepare(
-        "INSERT INTO votes (id, room_id, item_id, voter_id, voter_name, vote) VALUES (?, ?, ?, ?, ?, ?)"
-      )
-      .bind(voteId, room.id, itemId, voterId, voterName.trim(), vote)
-      .run();
-  }
+  // Atomic upsert. A SELECT-then-INSERT races when two submissions for the
+  // same (item, voter) interleave — the loser dies on UNIQUE with a 500.
+  await db
+    .prepare(
+      `INSERT INTO votes (id, room_id, item_id, voter_id, voter_name, vote) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(item_id, voter_id) DO UPDATE SET vote = excluded.vote, voter_name = excluded.voter_name`
+    )
+    .bind(crypto.randomUUID(), room.id, itemId, voterId, voterName.trim(), vote)
+    .run();
 
   // Get progress for this voter
   const voterVotes = await db
