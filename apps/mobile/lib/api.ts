@@ -6,6 +6,8 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   NOT_CREATOR: "Only the room creator can do that.",
   INVALID_STATUS: "This action isn't available right now.",
   VALIDATION_ERROR: "Please check your input and try again.",
+  NOT_NEXT_HOST: "The host picked someone else to create the next round.",
+  SERIES_CONTINUED: "The next round has already been created.",
 };
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -61,6 +63,7 @@ export type CreateRoomResponse = {
   mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
   createdAt: string;
   expiresAt: string;
+  roundNumber?: number;
 };
 
 export function createRoom(body: {
@@ -69,6 +72,7 @@ export function createRoom(body: {
   creatorName: string;
   allowSuggestions?: boolean;
   mode?: "vote" | "rank" | "bracket" | "mlt" | "tier";
+  previousRoomCode?: string;
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -141,6 +145,8 @@ export type RoomResponse = {
   myRankings?: Record<string, number>;
   myMltVotes?: Record<string, string>;
   myTiers?: Record<string, string>;
+  roundNumber?: number;
+  nextRoomCode?: string;
 };
 
 export function getRoom(code: string, voterId?: string) {
@@ -193,11 +199,24 @@ export type StatusResponse = {
   completedCount: number;
   isRevealed: boolean;
   currentRound?: number | null;
+  roundNumber?: number;
+  nextHost?: { participantId: string; name: string } | null;
+  nextRoomCode?: string | null;
   voters: { name: string; completed: boolean }[];
 };
 
 export function getStatus(code: string) {
   return request<StatusResponse>(`/rooms/${code}/status`);
+}
+
+export function pickNextHost(
+  code: string,
+  body: { creatorVoterId: string; nextParticipantId?: string }
+) {
+  return request<{ nextHost: { participantId: string; name: string } }>(
+    `/rooms/${code}/next-host`,
+    { method: "POST", body: JSON.stringify(body) }
+  );
 }
 
 // --- Rankings endpoints (blind rank mode) ---
