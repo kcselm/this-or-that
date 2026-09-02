@@ -17,7 +17,11 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
-  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const { mode: modeParam, previousRoomCode, name: nameParam } = useLocalSearchParams<{
+    mode?: string;
+    previousRoomCode?: string;
+    name?: string;
+  }>();
   const mode: "vote" | "rank" | "bracket" | "mlt" | "tier" =
     modeParam === "rank"
       ? "rank"
@@ -29,7 +33,7 @@ export default function CreateRoomScreen() {
             ? "tier"
             : "vote";
   const [topic, setTopic] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(nameParam ?? "");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -49,6 +53,7 @@ export default function CreateRoomScreen() {
         creatorName: trimmedName,
         allowSuggestions: mode === "vote" ? allowSuggestions : false,
         mode,
+        ...(previousRoomCode ? { previousRoomCode } : {}),
       });
       if (mode === "mlt") {
         router.replace({
@@ -62,6 +67,16 @@ export default function CreateRoomScreen() {
         });
       }
     } catch (e: any) {
+      if (previousRoomCode && (e.code === "NOT_NEXT_HOST" || e.code === "SERIES_CONTINUED")) {
+        // The pick changed (or the round already exists) while we were typing.
+        showAlert("Round moved on", e.message, () =>
+          router.replace({
+            pathname: "/room/[code]/results",
+            params: { code: previousRoomCode, name: trimmedName },
+          })
+        );
+        return;
+      }
       showAlert("Error", e.message);
     } finally {
       setLoading(false);
@@ -74,7 +89,9 @@ export default function CreateRoomScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>What are you deciding?</Text>
+        <Text style={styles.label}>
+          {previousRoomCode ? "What's the next category?" : "What are you deciding?"}
+        </Text>
         <TextInput
           style={styles.input}
           placeholder="e.g. Friday dinner"
@@ -86,17 +103,19 @@ export default function CreateRoomScreen() {
         />
       </View>
 
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Your display name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Alex"
-          placeholderTextColor={colors.mist}
-          value={name}
-          onChangeText={setName}
-          maxLength={30}
-        />
-      </View>
+      {!nameParam && (
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Your display name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Alex"
+            placeholderTextColor={colors.mist}
+            value={name}
+            onChangeText={setName}
+            maxLength={30}
+          />
+        </View>
+      )}
 
       {mode === "vote" && (
         <View style={styles.toggleRow}>
