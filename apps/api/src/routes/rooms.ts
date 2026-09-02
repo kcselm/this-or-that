@@ -96,9 +96,9 @@ rooms.post("/", async (c) => {
   if (prevRoom) {
     const link = await db
       .prepare(
-        "UPDATE rooms SET next_room_id = ?, series_id = COALESCE(series_id, id) WHERE id = ? AND next_room_id IS NULL"
+        "UPDATE rooms SET next_room_id = ?, series_id = COALESCE(series_id, id) WHERE id = ? AND next_room_id IS NULL AND next_host_voter_id = ?"
       )
-      .bind(id, prevRoom.id)
+      .bind(id, prevRoom.id, creatorVoterId)
       .run();
     if ((link.meta.changes ?? 0) === 0) {
       // A concurrent create already linked a successor — remove our orphan.
@@ -660,10 +660,13 @@ rooms.post("/:code/next-host", async (c) => {
     chosen = pool[Math.floor(Math.random() * pool.length)];
   }
 
-  await db
-    .prepare("UPDATE rooms SET next_host_voter_id = ? WHERE id = ?")
+  const pick = await db
+    .prepare("UPDATE rooms SET next_host_voter_id = ? WHERE id = ? AND next_room_id IS NULL")
     .bind(chosen.voter_id, room.id)
     .run();
+  if ((pick.meta.changes ?? 0) === 0) {
+    return errorResponse("SERIES_CONTINUED", "The next round has already been created", 409);
+  }
 
   return Response.json({
     nextHost: { participantId: chosen.id, name: chosen.voter_name },

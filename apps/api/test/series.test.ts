@@ -111,6 +111,7 @@ describe("POST /rooms with previousRoomCode", () => {
 
     const res = await createNextRound(code, BOB);
     expect(res.status).toBe(201);
+    expectNoVoterIds(res.body);
     expect(res.body.roundNumber).toBe(2);
 
     const newRoom = await env.DB.prepare(

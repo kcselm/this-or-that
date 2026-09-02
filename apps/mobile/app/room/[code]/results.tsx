@@ -117,6 +117,11 @@ export default function ResultsScreen() {
   // overlapping ticks can't both pass the guard.
   const advancingRef = useRef(false);
 
+  // Lets the "You're up!" button (and anything else outside the poll
+  // callback) stop the results poll before navigating away, so a buried
+  // results screen can't auto-advance someone mid-typing on the next screen.
+  const stopRef = useRef<(() => void) | null>(null);
+
   const advanceToNextRound = async (newCode: string, stop: () => void) => {
     setAdvancing(true);
     try {
@@ -130,8 +135,25 @@ export default function ResultsScreen() {
         return;
       }
       const voterId = await getVoterId();
-      await joinRoom(newCode, { voterId, voterName: displayName });
+      // Fetch the successor first and branch on its status — POST /join
+      // rejects revealed/closed rooms with 400, and a phone backgrounded
+      // through the whole next round can reopen after it's already revealed.
       const newRoom = await getRoom(newCode, voterId);
+      if (newRoom.status === "revealed") {
+        stop();
+        router.replace({
+          pathname: "/room/[code]/results",
+          params: { code: newCode, name: displayName },
+        });
+        return;
+      }
+      if (newRoom.status === "closed") {
+        stop();
+        await clearActiveRoom();
+        router.replace("/");
+        return;
+      }
+      await joinRoom(newCode, { voterId, voterName: displayName });
       await saveActiveRoom({ code: newCode, topic: newRoom.topic, name: displayName });
       stop();
       router.replace({
@@ -147,6 +169,7 @@ export default function ResultsScreen() {
   };
 
   usePolling(async (stop) => {
+    stopRef.current = stop;
     // Series flow exists only for rank rooms; stop once another mode loaded.
     if (voteData || bracketData || mltData || tierData) {
       stop();
@@ -257,12 +280,13 @@ export default function ResultsScreen() {
             {iAmNext && (
               <Pressable
                 style={({ pressed }) => [styles.youreUpButton, pressed && { opacity: 0.85 }]}
-                onPress={() =>
+                onPress={() => {
+                  stopRef.current?.();
                   router.push({
                     pathname: "/create",
                     params: { mode: "rank", previousRoomCode: code, name: name ?? "" },
-                  })
-                }
+                  });
+                }}
               >
                 <Text style={styles.youreUpText}>You're up! Create the next category</Text>
               </Pressable>
