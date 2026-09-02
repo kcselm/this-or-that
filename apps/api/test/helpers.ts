@@ -120,3 +120,30 @@ export async function getResults(code: string, voterId?: string) {
   const qs = voterId ? `?voterId=${encodeURIComponent(voterId)}` : "";
   return api("GET", `/rooms/${code}/results${qs}`);
 }
+
+export async function reveal(code: string, voterId = CREATOR.voterId) {
+  const res = await api("POST", `/rooms/${code}/reveal`, { creatorVoterId: voterId });
+  expect(res.status).toBe(200);
+}
+
+/** Rank room with 5 items, BOB joined, started, then host force-revealed. */
+export async function revealedRankRoom(): Promise<{ code: string; roomId: string }> {
+  const { code, roomId } = await createRoom("rank");
+  await addItems(code, ["A", "B", "C", "D", "E"]);
+  const joined = await join(code, BOB);
+  expect(joined.status).toBe(200);
+  await start(code);
+  await reveal(code);
+  return { code, roomId };
+}
+
+export async function pickNextHost(
+  code: string,
+  nextParticipantId?: string,
+  voterId = CREATOR.voterId
+) {
+  return api("POST", `/rooms/${code}/next-host`, {
+    creatorVoterId: voterId,
+    ...(nextParticipantId ? { nextParticipantId } : {}),
+  });
+}

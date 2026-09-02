@@ -270,3 +270,17 @@ export async function getTierPlacementsByVoter(
     .all<TierPlacement>();
   return results;
 }
+
+// Voter ids of everyone who has hosted a round in this series. The first
+// room's series_id is only backfilled once a successor exists, so match on
+// series_id OR the series root id itself.
+export async function getSeriesHostVoterIds(
+  db: D1Database,
+  seriesId: string
+): Promise<string[]> {
+  const { results } = await db
+    .prepare("SELECT DISTINCT creator_voter_id FROM rooms WHERE series_id = ?1 OR id = ?1")
+    .bind(seriesId)
+    .all<{ creator_voter_id: string }>();
+  return results.map((r) => r.creator_voter_id);
+}

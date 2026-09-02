@@ -1,7 +1,7 @@
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter } from "../db/queries";
-import { notFound, notCreator, invalidStatus, validationError } from "../lib/validation";
+import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter, getSeriesHostVoterIds } from "../db/queries";
+import { notFound, notCreator, invalidStatus, validationError, errorResponse } from "../lib/validation";
 
 export const rooms = createRouter();
 
@@ -548,4 +548,70 @@ rooms.post("/:code/close", async (c) => {
     .run();
 
   return Response.json({ success: true, status: "closed" });
+});
+
+// POST /api/rooms/:code/next-host — Pick who hosts the next round (creator only)
+// Omit nextParticipantId for a random draw that skips anyone who has already
+// hosted a round in this series; once everyone has hosted, the pool resets
+// (minus the current host, so random never repeats back-to-back).
+rooms.post("/:code/next-host", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const body = await c.req.json();
+  const { creatorVoterId, nextParticipantId } = body;
+
+  if (!creatorVoterId || typeof creatorVoterId !== "string") {
+    return validationError("Creator voter ID is required");
+  }
+
+  const db = c.env.DB;
+  const room = await getRoomByCode(db, code);
+  if (!room) return notFound();
+  if (room.creator_voter_id !== creatorVoterId) return notCreator();
+  if (room.mode !== "rank") {
+    return invalidStatus("Keep playing is only available in blind rank rooms");
+  }
+  if (room.status !== "revealed") {
+    return invalidStatus("The next host can only be picked after results are revealed");
+  }
+  if (room.next_room_id) {
+    return errorResponse("SERIES_CONTINUED", "The next round has already been created", 409);
+  }
+
+  const { results: parts } = await db
+    .prepare(
+      "SELECT id, voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+    )
+    .bind(room.id)
+    .all<{ id: string; voter_id: string; voter_name: string }>();
+
+  let chosen: { id: string; voter_id: string; voter_name: string } | undefined;
+  if (nextParticipantId !== undefined) {
+    if (typeof nextParticipantId !== "string") {
+      return validationError("nextParticipantId must be a string");
+    }
+    chosen = parts.find((p) => p.id === nextParticipantId);
+    if (!chosen) {
+      return validationError("nextParticipantId is not a participant of this room");
+    }
+  } else {
+    const seriesId = room.series_id ?? room.id;
+    const hosted = new Set(await getSeriesHostVoterIds(db, seriesId));
+    let pool = parts.filter((p) => !hosted.has(p.voter_id));
+    if (pool.length === 0) {
+      // Everyone has hosted — reset, but never repeat the current host
+      // back-to-back unless they are the only participant.
+      pool = parts.filter((p) => p.voter_id !== room.creator_voter_id);
+      if (pool.length === 0) pool = parts;
+    }
+    chosen = pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  await db
+    .prepare("UPDATE rooms SET next_host_voter_id = ? WHERE id = ?")
+    .bind(chosen.voter_id, room.id)
+    .run();
+
+  return Response.json({
+    nextHost: { participantId: chosen.id, name: chosen.voter_name },
+  });
 });
