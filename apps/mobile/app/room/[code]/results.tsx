@@ -111,13 +111,21 @@ export default function ResultsScreen() {
     return active?.name ?? null;
   };
 
-  const advanceToNextRound = async (newCode: string) => {
+  // Guards against a second poll tick starting a concurrent advance attempt
+  // (an in-flight advance's own awaits can overlap the 3s interval). Flipped
+  // synchronously — no await between the check and the set — so two
+  // overlapping ticks can't both pass the guard.
+  const advancingRef = useRef(false);
+
+  const advanceToNextRound = async (newCode: string, stop: () => void) => {
     setAdvancing(true);
     try {
       const displayName = await resolveDisplayName();
       if (!displayName) {
         // Never joined under a name (e.g. viewed results via an old code) —
-        // run them through the normal name entry for the new room.
+        // run them through the normal name entry for the new room. Stop
+        // polling only now that we're actually navigating away.
+        stop();
         router.replace({ pathname: "/join/name", params: { code: newCode } });
         return;
       }
@@ -125,12 +133,16 @@ export default function ResultsScreen() {
       await joinRoom(newCode, { voterId, voterName: displayName });
       const newRoom = await getRoom(newCode, voterId);
       await saveActiveRoom({ code: newCode, topic: newRoom.topic, name: displayName });
+      stop();
       router.replace({
         pathname: "/room/[code]/lobby",
         params: { code: newCode, name: displayName },
       });
     } catch {
-      setAdvancing(false); // next poll tick retries
+      // Transient failure (e.g. network blip) — clear the guard so the next
+      // poll tick (polling was never stopped) genuinely retries.
+      advancingRef.current = false;
+      setAdvancing(false);
     }
   };
 
@@ -152,13 +164,17 @@ export default function ResultsScreen() {
       const status = await getStatus(code);
       if (status.nextHost !== undefined) setNextHost(status.nextHost ?? null);
       if (status.nextRoomCode) {
-        stop();
         const self = partsList.find((p) => p.isYou);
         const selfIsNext = !!(
           status.nextHost && self && status.nextHost.participantId === self.participantId
         );
-        // The new host reaches the new room through the create flow instead.
-        if (!selfIsNext) await advanceToNextRound(status.nextRoomCode);
+        if (selfIsNext) {
+          // The new host reaches the new room through the create flow instead.
+          stop();
+        } else if (!advancingRef.current) {
+          advancingRef.current = true;
+          await advanceToNextRound(status.nextRoomCode, stop);
+        }
       }
     } catch {}
   }, 3000);
