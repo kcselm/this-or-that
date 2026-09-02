@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,24 @@ import {
   ScrollView,
   ActivityIndicator,
   Pressable,
+  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
-import { getResults, type ResultsResponse } from "../../../lib/api";
-import { getVoterId, clearActiveRoom } from "../../../lib/storage";
+import {
+  getResults,
+  getStatus,
+  getParticipants,
+  joinRoom,
+  getRoom,
+  pickNextHost,
+  type ResultsResponse,
+  type Participant,
+} from "../../../lib/api";
+import { getVoterId, clearActiveRoom, getActiveRoom, saveActiveRoom } from "../../../lib/storage";
+import { usePolling } from "../../../lib/usePolling";
+import { showAlert } from "../../../lib/alert";
 import RankPlayerCard from "../../../components/RankPlayerCard";
 import BracketTree from "../../../components/BracketTree";
 import MltRevealCard from "../../../components/MltRevealCard";
@@ -36,7 +48,7 @@ const MEDAL_COLORS = [
 export default function ResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { code } = useLocalSearchParams<{ code: string }>();
+  const { code, name } = useLocalSearchParams<{ code: string; name?: string }>();
   const [voteData, setVoteData] = useState<RevealedVoteResults | null>(null);
   const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
   const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
@@ -44,6 +56,10 @@ export default function ResultsScreen() {
   const [tierData, setTierData] = useState<RevealedTierResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [nextHost, setNextHost] = useState<{ participantId: string; name: string } | null>(null);
+  const [advancing, setAdvancing] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
 
   const loadResults = async () => {
     setLoading(true);
@@ -54,20 +70,24 @@ export default function ResultsScreen() {
       if (!res.revealed) {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
       } else {
-        // Only forget the room once we've actually shown its results —
-        // clearing on mount destroyed the rejoin banner for live rooms
-        // whenever this screen was reached early.
-        clearActiveRoom();
         if ("mode" in res && res.mode === "rank") {
+          // Rank rooms may continue into another round — keep the rejoin
+          // banner alive until the player actually leaves for home.
           setRankData(res);
-        } else if ("mode" in res && res.mode === "bracket") {
-          setBracketData(res as RevealedBracketResults);
-        } else if ("mode" in res && res.mode === "mlt") {
-          setMltData(res as RevealedMltResults);
-        } else if ("mode" in res && res.mode === "tier") {
-          setTierData(res as RevealedTierResults);
         } else {
-          setVoteData(res as RevealedVoteResults);
+          // Only forget the room once we've actually shown its results —
+          // clearing on mount destroyed the rejoin banner for live rooms
+          // whenever this screen was reached early.
+          clearActiveRoom();
+          if ("mode" in res && res.mode === "bracket") {
+            setBracketData(res as RevealedBracketResults);
+          } else if ("mode" in res && res.mode === "mlt") {
+            setMltData(res as RevealedMltResults);
+          } else if ("mode" in res && res.mode === "tier") {
+            setTierData(res as RevealedTierResults);
+          } else {
+            setVoteData(res as RevealedVoteResults);
+          }
         }
       }
     } catch (e: any) {
@@ -80,6 +100,82 @@ export default function ResultsScreen() {
     loadResults();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
+
+  const me = participants.find((p) => p.isYou);
+  const isHost = !!me?.isCreator;
+  const iAmNext = !!(nextHost && me && nextHost.participantId === me.participantId);
+
+  const resolveDisplayName = async (): Promise<string | null> => {
+    if (name) return name;
+    const active = await getActiveRoom();
+    return active?.name ?? null;
+  };
+
+  const advanceToNextRound = async (newCode: string) => {
+    setAdvancing(true);
+    try {
+      const displayName = await resolveDisplayName();
+      if (!displayName) {
+        // Never joined under a name (e.g. viewed results via an old code) —
+        // run them through the normal name entry for the new room.
+        router.replace({ pathname: "/join/name", params: { code: newCode } });
+        return;
+      }
+      const voterId = await getVoterId();
+      await joinRoom(newCode, { voterId, voterName: displayName });
+      const newRoom = await getRoom(newCode, voterId);
+      await saveActiveRoom({ code: newCode, topic: newRoom.topic, name: displayName });
+      router.replace({
+        pathname: "/room/[code]/lobby",
+        params: { code: newCode, name: displayName },
+      });
+    } catch {
+      setAdvancing(false); // next poll tick retries
+    }
+  };
+
+  usePolling(async (stop) => {
+    // Series flow exists only for rank rooms; stop once another mode loaded.
+    if (voteData || bracketData || mltData || tierData) {
+      stop();
+      return;
+    }
+    if (!rankData) return;
+    try {
+      const voterId = await getVoterId();
+      let partsList = participants;
+      if (partsList.length === 0) {
+        const parts = await getParticipants(code, voterId);
+        partsList = parts.participants;
+        setParticipants(partsList);
+      }
+      const status = await getStatus(code);
+      if (status.nextHost !== undefined) setNextHost(status.nextHost ?? null);
+      if (status.nextRoomCode) {
+        stop();
+        const self = partsList.find((p) => p.isYou);
+        const selfIsNext = !!(
+          status.nextHost && self && status.nextHost.participantId === self.participantId
+        );
+        // The new host reaches the new room through the create flow instead.
+        if (!selfIsNext) await advanceToNextRound(status.nextRoomCode);
+      }
+    } catch {}
+  }, 3000);
+
+  const handlePick = async (participantId?: string) => {
+    try {
+      const voterId = await getVoterId();
+      const res = await pickNextHost(code, {
+        creatorVoterId: voterId,
+        ...(participantId ? { nextParticipantId: participantId } : {}),
+      });
+      setNextHost(res.nextHost);
+      setShowPicker(false);
+    } catch (e: any) {
+      showAlert("Error", e.message);
+    }
+  };
 
   if (loading) {
     return (
@@ -129,12 +225,83 @@ export default function ResultsScreen() {
             </Animated.View>
           ))}
         </View>
+        {advancing ? (
+          <View style={styles.nextHostBanner}>
+            <Text style={styles.nextHostBannerText}>Heading to the next round…</Text>
+          </View>
+        ) : (
+          <>
+            {nextHost && !iAmNext && (
+              <View style={styles.nextHostBanner}>
+                <Text style={styles.nextHostBannerText}>
+                  🎲 {nextHost.name} is up next — waiting for their category…
+                </Text>
+              </View>
+            )}
+            {iAmNext && (
+              <Pressable
+                style={({ pressed }) => [styles.youreUpButton, pressed && { opacity: 0.85 }]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/create",
+                    params: { mode: "rank", previousRoomCode: code, name: name ?? "" },
+                  })
+                }
+              >
+                <Text style={styles.youreUpText}>You're up! Create the next category</Text>
+              </Pressable>
+            )}
+            {isHost && (
+              <Pressable
+                style={({ pressed }) => [styles.keepPlayingButton, pressed && styles.homeButtonPressed]}
+                onPress={() => setShowPicker(true)}
+              >
+                <Text style={styles.homeButtonText}>
+                  {nextHost ? "Change next host" : "Keep Playing"}
+                </Text>
+              </Pressable>
+            )}
+          </>
+        )}
         <Pressable
           style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
-          onPress={() => router.replace("/")}
+          onPress={async () => {
+            await clearActiveRoom();
+            router.replace("/");
+          }}
         >
           <Text style={styles.homeLinkText}>Back to Home</Text>
         </Pressable>
+
+        <Modal
+          visible={showPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowPicker(false)}
+        >
+          <View style={styles.pickerOverlay}>
+            <View style={styles.pickerCard}>
+              <Text style={styles.pickerTitle}>Who hosts the next round?</Text>
+              <Pressable style={styles.pickerRandom} onPress={() => handlePick()}>
+                <Text style={styles.pickerRandomText}>🎲 Pick randomly</Text>
+              </Pressable>
+              {participants.map((p) => (
+                <Pressable
+                  key={p.participantId}
+                  style={styles.pickerRow}
+                  onPress={() => handlePick(p.participantId)}
+                >
+                  <Text style={styles.pickerRowText}>
+                    {p.isYou ? `${p.name} (you)` : p.name}
+                  </Text>
+                </Pressable>
+              ))}
+              <Pressable onPress={() => setShowPicker(false)}>
+                <Text style={styles.pickerCancel}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     );
   }
@@ -466,6 +633,87 @@ const styles = StyleSheet.create({
   rankList: {
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
+  },
+  keepPlayingButton: {
+    backgroundColor: colors.coral,
+    paddingVertical: 16,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.xl,
+    ...shadows.button,
+  },
+  youreUpButton: {
+    backgroundColor: colors.teal,
+    paddingVertical: 16,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.xl,
+    ...shadows.button,
+  },
+  youreUpText: {
+    color: colors.warmWhite,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  nextHostBanner: {
+    backgroundColor: colors.warmWhite,
+    borderWidth: 2,
+    borderColor: colors.amber,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.xl,
+  },
+  nextHostBannerText: {
+    ...typography.body,
+    color: colors.charcoal,
+    textAlign: "center",
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  pickerCard: {
+    backgroundColor: colors.warmWhite,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.sm,
+  },
+  pickerTitle: {
+    ...typography.h3,
+    color: colors.charcoal,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
+  pickerRandom: {
+    backgroundColor: colors.coral,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  pickerRandomText: {
+    ...typography.bodyBold,
+    color: colors.warmWhite,
+  },
+  pickerRow: {
+    backgroundColor: colors.sandLight,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  pickerRowText: {
+    ...typography.bodyBold,
+    color: colors.charcoal,
+  },
+  pickerCancel: {
+    ...typography.body,
+    color: colors.mist,
+    textAlign: "center",
+    paddingVertical: spacing.sm,
   },
 });
 
