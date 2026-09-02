@@ -33,6 +33,32 @@ rooms.post("/", async (c) => {
   const db = c.env.DB;
   const id = crypto.randomUUID();
 
+  // Successor-room creation: only the designated next host of a revealed
+  // rank room may chain a new round onto it.
+  let prevRoom: Awaited<ReturnType<typeof getRoomByCode>> = null;
+  if (body.previousRoomCode !== undefined) {
+    if (typeof body.previousRoomCode !== "string") {
+      return validationError("previousRoomCode must be a string");
+    }
+    if (mode !== "rank") {
+      return validationError("Only blind rank rooms can continue a series");
+    }
+    prevRoom = await getRoomByCode(db, body.previousRoomCode.toUpperCase());
+    if (!prevRoom) return notFound();
+    if (prevRoom.mode !== "rank") {
+      return invalidStatus("Only blind rank rooms can continue a series");
+    }
+    if (prevRoom.status !== "revealed") {
+      return invalidStatus("The previous round hasn't been revealed yet");
+    }
+    if (prevRoom.next_room_id) {
+      return errorResponse("SERIES_CONTINUED", "The next round has already been created", 409);
+    }
+    if (prevRoom.next_host_voter_id !== creatorVoterId) {
+      return errorResponse("NOT_NEXT_HOST", "The host picked someone else to create the next round", 403);
+    }
+  }
+
   // Generate a unique code
   let code: string;
   for (let attempts = 0; ; attempts++) {
@@ -51,11 +77,14 @@ rooms.post("/", async (c) => {
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
+  const seriesId = prevRoom ? prevRoom.series_id ?? prevRoom.id : null;
+  const roundNumber = prevRoom ? prevRoom.round_number + 1 : 1;
+
   await db
     .prepare(
-      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, allow_suggestions, mode, created_at, expires_at) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)"
+      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, allow_suggestions, mode, created_at, expires_at, series_id, round_number) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)"
     )
-    .bind(id, code!, topic.trim(), creatorVoterId, allowSuggestions, mode, now, expiresAt)
+    .bind(id, code!, topic.trim(), creatorVoterId, allowSuggestions, mode, now, expiresAt, seriesId, roundNumber)
     .run();
 
   // Auto-join the creator as a participant
@@ -64,8 +93,25 @@ rooms.post("/", async (c) => {
     .bind(crypto.randomUUID(), id, creatorVoterId, creatorName.trim())
     .run();
 
+  if (prevRoom) {
+    const link = await db
+      .prepare(
+        "UPDATE rooms SET next_room_id = ?, series_id = COALESCE(series_id, id) WHERE id = ? AND next_room_id IS NULL"
+      )
+      .bind(id, prevRoom.id)
+      .run();
+    if ((link.meta.changes ?? 0) === 0) {
+      // A concurrent create already linked a successor — remove our orphan.
+      await db.batch([
+        db.prepare("DELETE FROM participants WHERE room_id = ?").bind(id),
+        db.prepare("DELETE FROM rooms WHERE id = ?").bind(id),
+      ]);
+      return errorResponse("SERIES_CONTINUED", "The next round has already been created", 409);
+    }
+  }
+
   return Response.json(
-    { id, code: code!, topic: topic.trim(), mode, createdAt: now, expiresAt },
+    { id, code: code!, topic: topic.trim(), mode, createdAt: now, expiresAt, roundNumber },
     { status: 201 }
   );
 });

@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:workers";
-import { createRoom, getParticipants, expectNoVoterIds, pickNextHost, revealedRankRoom, join, addItems, start, reveal, BOB, EVE, CREATOR } from "./helpers";
+import { createRoom, getParticipants, expectNoVoterIds, pickNextHost, revealedRankRoom, join, addItems, start, reveal, BOB, EVE, CREATOR, createNextRound, addItemsAs, startAs } from "./helpers";
+
+async function pickedBob(code: string): Promise<string> {
+  const parts = await getParticipants(code);
+  const bobId = parts.body.participants.find((p: any) => p.name === "Bob").participantId;
+  const res = await pickNextHost(code, bobId);
+  expect(res.status).toBe(200);
+  return bobId;
+}
 
 describe("room series schema", () => {
   it("a new room is round 1 of no series", async () => {
@@ -93,5 +101,126 @@ describe("POST /rooms/:code/next-host", () => {
     const res = await pickNextHost(code, "not-a-participant-id");
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
+describe("POST /rooms with previousRoomCode", () => {
+  it("the designated next host creates round 2, linked into a series", async () => {
+    const { code, roomId } = await revealedRankRoom();
+    await pickedBob(code);
+
+    const res = await createNextRound(code, BOB);
+    expect(res.status).toBe(201);
+    expect(res.body.roundNumber).toBe(2);
+
+    const newRoom = await env.DB.prepare(
+      "SELECT series_id, round_number FROM rooms WHERE id = ?"
+    )
+      .bind(res.body.id)
+      .first<any>();
+    expect(newRoom).toEqual({ series_id: roomId, round_number: 2 });
+
+    const prev = await env.DB.prepare(
+      "SELECT series_id, next_room_id FROM rooms WHERE id = ?"
+    )
+      .bind(roomId)
+      .first<any>();
+    expect(prev).toEqual({ series_id: roomId, next_room_id: res.body.id });
+  });
+
+  it("a caller who wasn't picked gets 403", async () => {
+    const { code } = await revealedRankRoom();
+    await pickedBob(code);
+    const res = await createNextRound(code, EVE);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("NOT_NEXT_HOST");
+  });
+
+  it("no next host picked yet means 403", async () => {
+    const { code } = await revealedRankRoom();
+    const res = await createNextRound(code, BOB);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("NOT_NEXT_HOST");
+  });
+
+  it("cannot continue a room that isn't revealed", async () => {
+    const { code } = await createRoom("rank");
+    await addItems(code, ["A", "B", "C", "D", "E"]);
+    const res = await createNextRound(code, BOB);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_STATUS");
+  });
+
+  it("a second successor gets 409 and leaves no orphan room", async () => {
+    const { code, roomId } = await revealedRankRoom();
+    await pickedBob(code);
+    const first = await createNextRound(code, BOB);
+    expect(first.status).toBe(201);
+
+    const second = await createNextRound(code, BOB);
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe("SERIES_CONTINUED");
+
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) as c FROM rooms WHERE series_id = ?"
+    )
+      .bind(roomId)
+      .first<{ c: number }>();
+    expect(count?.c).toBe(2); // round 1 (backfilled) + round 2, nothing else
+  });
+
+  it("concurrent duplicate creates yield one 201 and one 409", async () => {
+    const { code, roomId } = await revealedRankRoom();
+    await pickedBob(code);
+
+    const [a, b] = await Promise.all([
+      createNextRound(code, BOB),
+      createNextRound(code, BOB),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) as c FROM rooms WHERE series_id = ?"
+    )
+      .bind(roomId)
+      .first<{ c: number }>();
+    expect(count?.c).toBe(2);
+  });
+
+  it("next-host is locked once the series has continued", async () => {
+    const { code } = await revealedRankRoom();
+    const bobId = await pickedBob(code);
+    const created = await createNextRound(code, BOB);
+    expect(created.status).toBe(201);
+
+    const res = await pickNextHost(code, bobId);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("SERIES_CONTINUED");
+  });
+
+  it("round 3 keeps the original series id, and the reset random pool skips the current host", async () => {
+    const { code, roomId } = await revealedRankRoom();
+    await pickedBob(code);
+    const r2 = await createNextRound(code, BOB);
+    const code2 = r2.body.code as string;
+
+    // Play round 2 to reveal: CREATOR joins, BOB (the new creator) runs it.
+    await join(code2, CREATOR);
+    await addItemsAs(code2, ["F", "G", "H", "I", "J"], BOB);
+    await startAs(code2, BOB);
+    await reveal(code2, BOB.voterId);
+
+    // Both participants have hosted → pool resets minus BOB (current host).
+    const pick = await pickNextHost(code2, undefined, BOB.voterId);
+    expect(pick.status).toBe(200);
+    expect(pick.body.nextHost.name).toBe("Cass");
+
+    const r3 = await createNextRound(code2, CREATOR);
+    expect(r3.status).toBe(201);
+    expect(r3.body.roundNumber).toBe(3);
+    const room3 = await env.DB.prepare("SELECT series_id FROM rooms WHERE id = ?")
+      .bind(r3.body.id)
+      .first<{ series_id: string }>();
+    expect(room3?.series_id).toBe(roomId);
   });
 });

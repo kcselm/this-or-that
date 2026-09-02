@@ -147,3 +147,37 @@ export async function pickNextHost(
     ...(nextParticipantId ? { nextParticipantId } : {}),
   });
 }
+
+export async function addItemsAs(
+  code: string,
+  titles: string[],
+  host: { voterId: string; name: string }
+) {
+  const res = await api("POST", `/rooms/${code}/items`, {
+    items: titles,
+    creatorVoterId: host.voterId,
+  });
+  expect(res.status).toBe(201);
+  return res.body.items as { id: string; title: string }[];
+}
+
+export async function startAs(code: string, host: { voterId: string; name: string }) {
+  const res = await api("POST", `/rooms/${code}/start`, {
+    creatorVoterId: host.voterId,
+  });
+  expect(res.status).toBe(200);
+}
+
+export async function createNextRound(
+  prevCode: string,
+  host: { voterId: string; name: string },
+  topic = "Next round topic"
+) {
+  return api("POST", "/rooms", {
+    topic,
+    creatorVoterId: host.voterId,
+    creatorName: host.name,
+    mode: "rank",
+    previousRoomCode: prevCode,
+  });
+}
