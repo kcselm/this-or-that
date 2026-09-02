@@ -8,6 +8,10 @@ export type Room = {
   mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
   created_at: string;
   expires_at: string;
+  series_id: string | null;
+  round_number: number;
+  next_host_voter_id: string | null;
+  next_room_id: string | null;
 };
 
 export type Item = {

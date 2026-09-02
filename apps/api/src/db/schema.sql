@@ -8,7 +8,11 @@ CREATE TABLE rooms (
   allow_suggestions INTEGER NOT NULL DEFAULT 0,
   mode TEXT NOT NULL DEFAULT 'vote',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  expires_at TEXT NOT NULL
+  expires_at TEXT NOT NULL,
+  series_id TEXT,
+  round_number INTEGER NOT NULL DEFAULT 1,
+  next_host_voter_id TEXT,
+  next_room_id TEXT
 );
 
 -- Items in a room
@@ -113,6 +117,7 @@ CREATE TABLE tier_placements (
 
 -- Indexes
 CREATE INDEX idx_rooms_code ON rooms(code);
+CREATE INDEX idx_rooms_series ON rooms(series_id);
 CREATE INDEX idx_items_room ON items(room_id);
 CREATE INDEX idx_votes_room ON votes(room_id);
 CREATE INDEX idx_votes_item ON votes(item_id);
