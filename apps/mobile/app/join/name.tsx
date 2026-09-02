@@ -27,7 +27,15 @@ export default function NameScreen() {
     setLoading(true);
     try {
       const voterId = await getVoterId();
-      const room = await getRoom(code, voterId);
+      let room = await getRoom(code, voterId);
+
+      // A code from an earlier round forwards to the newest round in the
+      // series (the server resolves multi-hop chains to one code).
+      let targetCode = code;
+      if (room.nextRoomCode) {
+        targetCode = room.nextRoomCode;
+        room = await getRoom(targetCode, voterId);
+      }
 
       // The API rejects joins on closed/revealed rooms, so check status first.
       if (room.status === "closed") {
@@ -38,19 +46,19 @@ export default function NameScreen() {
         // Voting is over — show the results without registering as a participant.
         router.replace({
           pathname: "/room/[code]/results",
-          params: { code, name: trimmed },
+          params: { code: targetCode, name: trimmed },
         });
         return;
       }
 
       // Register as a participant
-      await joinRoom(code, { voterId, voterName: trimmed });
-      await saveActiveRoom({ code, topic: room.topic, name: trimmed });
+      await joinRoom(targetCode, { voterId, voterName: trimmed });
+      await saveActiveRoom({ code: targetCode, topic: room.topic, name: trimmed });
 
       if (room.status === "open") {
         router.replace({
           pathname: "/room/[code]/lobby",
-          params: { code, name: trimmed },
+          params: { code: targetCode, name: trimmed },
         });
       } else if (room.status === "voting") {
         router.replace({
@@ -60,12 +68,12 @@ export default function NameScreen() {
             room.mode === "mlt" ? "/room/[code]/mlt" :
             room.mode === "tier" ? "/room/[code]/tier" :
             "/room/[code]/swipe",
-          params: { code, name: trimmed, isCreator: "false" },
+          params: { code: targetCode, name: trimmed, isCreator: "false" },
         });
       } else {
         router.replace({
           pathname: "/room/[code]/results",
-          params: { code, name: trimmed },
+          params: { code: targetCode, name: trimmed },
         });
       }
     } catch (e: any) {

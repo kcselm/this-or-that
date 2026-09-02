@@ -124,6 +124,10 @@ export default function WaitingScreen() {
           Waiting for others
         </Animated.Text>
 
+        {status?.roundNumber && status.roundNumber > 1 ? (
+          <Text style={styles.roundCaption}>Round {status.roundNumber}</Text>
+        ) : null}
+
         {status && (
           <View style={styles.progressBar}>
             <Animated.View
@@ -242,6 +246,12 @@ const styles = StyleSheet.create({
   heading: {
     ...typography.h2,
     color: colors.charcoal,
+    marginBottom: spacing.lg,
+  },
+  roundCaption: {
+    ...typography.caption,
+    color: colors.mist,
+    marginTop: -spacing.md,
     marginBottom: spacing.lg,
   },
   progressBar: {

@@ -60,6 +60,7 @@ export default function LobbyScreen() {
   const [items, setItems] = useState<RoomItem[]>([]);
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [currentItem, setCurrentItem] = useState("");
+  const [roundNumber, setRoundNumber] = useState(1);
   const inputRef = useRef<TextInput>(null);
 
   usePolling(async (stop) => {
@@ -72,6 +73,7 @@ export default function LobbyScreen() {
       }
       setAllowSuggestions(room.allowSuggestions);
       setItems(room.items);
+      if (room.roundNumber) setRoundNumber(room.roundNumber);
 
       if (room.status === "closed") {
         stop();
@@ -142,6 +144,9 @@ export default function LobbyScreen() {
           <PulsingDot />
           <Text style={styles.statusText}>Waiting for host</Text>
         </Animated.View>
+        {roundNumber > 1 && (
+          <Text style={styles.roundBadge}>ROUND {roundNumber}</Text>
+        )}
         {topic && (
           <Animated.Text entering={FadeInUp.duration(400).delay(100)} style={styles.topicText}>
             {topic}
@@ -289,6 +294,12 @@ const styles = StyleSheet.create({
     color: colors.slate,
     textAlign: "center",
     marginBottom: spacing.lg,
+  },
+  roundBadge: {
+    ...typography.tiny,
+    color: colors.amber,
+    letterSpacing: 2,
+    marginBottom: spacing.xs,
   },
   itemsSection: {
     flex: 1,
