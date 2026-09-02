@@ -284,3 +284,16 @@ export async function getSeriesHostVoterIds(
     .all<{ creator_voter_id: string }>();
   return results.map((r) => r.creator_voter_id);
 }
+
+// Newest unexpired room in a series — the round latecomers should land in.
+export async function getLatestSeriesRoom(
+  db: D1Database,
+  seriesId: string
+): Promise<Room | null> {
+  return db
+    .prepare(
+      "SELECT * FROM rooms WHERE (series_id = ?1 OR id = ?1) AND expires_at > datetime('now') ORDER BY round_number DESC LIMIT 1"
+    )
+    .bind(seriesId)
+    .first<Room>();
+}

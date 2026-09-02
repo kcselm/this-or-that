@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:workers";
-import { createRoom, getParticipants, expectNoVoterIds, pickNextHost, revealedRankRoom, join, addItems, start, reveal, BOB, EVE, CREATOR, createNextRound, addItemsAs, startAs } from "./helpers";
+import { createRoom, getParticipants, expectNoVoterIds, pickNextHost, revealedRankRoom, join, addItems, start, reveal, BOB, EVE, CREATOR, createNextRound, addItemsAs, startAs, getRoom, startedVoteRoom, api } from "./helpers";
 
 async function pickedBob(code: string): Promise<string> {
   const parts = await getParticipants(code);
@@ -222,5 +222,61 @@ describe("POST /rooms with previousRoomCode", () => {
       .bind(r3.body.id)
       .first<{ series_id: string }>();
     expect(room3?.series_id).toBe(roomId);
+  });
+});
+
+describe("series exposure on GET /status and GET /rooms/:code", () => {
+  it("a revealed rank room starts with no next host or next room", async () => {
+    const { code } = await revealedRankRoom();
+    const res = await api("GET", `/rooms/${code}/status`);
+    expect(res.status).toBe(200);
+    expect(res.body.roundNumber).toBe(1);
+    expect(res.body.nextHost).toBeNull();
+    expect(res.body.nextRoomCode).toBeNull();
+    expectNoVoterIds(res.body);
+  });
+
+  it("status shows the picked next host by participant id only", async () => {
+    const { code } = await revealedRankRoom();
+    const bobId = await pickedBob(code);
+    const res = await api("GET", `/rooms/${code}/status`);
+    expect(res.body.nextHost).toEqual({ participantId: bobId, name: "Bob" });
+    expectNoVoterIds(res.body);
+  });
+
+  it("status and room GETs point at the NEWEST round in the series", async () => {
+    // Build a 3-round chain.
+    const { code } = await revealedRankRoom();
+    await pickedBob(code);
+    const r2 = await createNextRound(code, BOB);
+    const code2 = r2.body.code as string;
+    await join(code2, CREATOR);
+    await addItemsAs(code2, ["F", "G", "H", "I", "J"], BOB);
+    await startAs(code2, BOB);
+    await reveal(code2, BOB.voterId);
+    await pickNextHost(code2, undefined, BOB.voterId); // resets pool → Cass
+    const r3 = await createNextRound(code2, CREATOR);
+    const code3 = r3.body.code as string;
+
+    const s1 = await api("GET", `/rooms/${code}/status`);
+    expect(s1.body.nextRoomCode).toBe(code3); // multi-hop resolution
+    const s2 = await api("GET", `/rooms/${code2}/status`);
+    expect(s2.body.nextRoomCode).toBe(code3);
+    const s3 = await api("GET", `/rooms/${code3}/status`);
+    expect(s3.body.roundNumber).toBe(3);
+    expect(s3.body.nextRoomCode).toBeNull();
+
+    const room1 = await getRoom(code);
+    expect(room1.body.nextRoomCode).toBe(code3);
+    expect(room1.body.roundNumber).toBe(1);
+  });
+
+  it("vote-mode status keeps its existing shape", async () => {
+    const { code } = await startedVoteRoom();
+    const res = await api("GET", `/rooms/${code}/status`);
+    expect(res.status).toBe(200);
+    expect(res.body.roundNumber).toBeUndefined();
+    expect(res.body.nextHost).toBeUndefined();
+    expect(res.body.nextRoomCode).toBeUndefined();
   });
 });

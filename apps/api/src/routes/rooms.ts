@@ -1,6 +1,6 @@
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter, getSeriesHostVoterIds } from "../db/queries";
+import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter, getSeriesHostVoterIds, getLatestSeriesRoom } from "../db/queries";
 import { notFound, notCreator, invalidStatus, validationError, errorResponse } from "../lib/validation";
 
 export const rooms = createRouter();
@@ -456,6 +456,14 @@ rooms.get("/:code", async (c) => {
         myTiers[p.item_id] = p.tier;
       }
       response.myTiers = myTiers;
+    }
+  }
+
+  response.roundNumber = room.round_number;
+  if (room.next_room_id) {
+    const latest = await getLatestSeriesRoom(db, room.series_id ?? room.id);
+    if (latest && latest.round_number > room.round_number) {
+      response.nextRoomCode = latest.code;
     }
   }
 

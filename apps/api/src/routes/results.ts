@@ -9,6 +9,7 @@ import {
   getMatchupVotesByRoom,
   getCurrentRound,
   getTierPlacementsByRoom,
+  getLatestSeriesRoom,
   type Room,
   type Matchup,
 } from "../db/queries";
@@ -69,12 +70,35 @@ results.get("/:code/status", async (c) => {
 
   const totalVoters = voters.length;
 
-  return Response.json({
+  const payload: Record<string, unknown> = {
     totalVoters,
     completedCount,
     isRevealed: room.status === "revealed",
     voters,
-  });
+  };
+
+  if (room.mode === "rank") {
+    payload.roundNumber = room.round_number;
+    payload.nextHost = null;
+    payload.nextRoomCode = null;
+    if (room.status === "revealed") {
+      if (room.next_host_voter_id) {
+        const nh = await db
+          .prepare("SELECT id, voter_name FROM participants WHERE room_id = ? AND voter_id = ?")
+          .bind(room.id, room.next_host_voter_id)
+          .first<{ id: string; voter_name: string }>();
+        if (nh) payload.nextHost = { participantId: nh.id, name: nh.voter_name };
+      }
+      if (room.next_room_id) {
+        const latest = await getLatestSeriesRoom(db, room.series_id ?? room.id);
+        if (latest && latest.round_number > room.round_number) {
+          payload.nextRoomCode = latest.code;
+        }
+      }
+    }
+  }
+
+  return Response.json(payload);
 });
 
 async function getBracketStatus(c: any, db: D1Database, room: Room) {
