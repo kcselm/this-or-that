@@ -1,6 +1,7 @@
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter, getSeriesHostVoterIds, getLatestSeriesRoom } from "../db/queries";
+import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter, getSeriesHostVoterIds, getLatestSeriesRoom, insertMatchupStatement } from "../db/queries";
+import { planRound } from "../lib/bracket-shape";
 import { notFound, notCreator, invalidStatus, validationError, errorResponse } from "../lib/validation";
 
 export const rooms = createRouter();
@@ -325,41 +326,11 @@ rooms.post("/:code/start", async (c) => {
       [ids[i], ids[j]] = [ids[j], ids[i]];
     }
 
-    const N = ids.length;
-    let P = 1;
-    while (P < N) P *= 2;            // next power of 2 ≥ N
-    const realMatchups = N - P / 2;  // number of round-1 matchups with both items
-    const byes = P - N;               // number of round-1 bye matchups
-
+    // Round 1 with rolling byes: floor(N/2) matchups plus one bye when N is odd.
     const nowIso = new Date().toISOString();
-    const statements: any[] = [];
-
-    // Real Round 1 matchups: items 0..(realMatchups*2 - 1) paired adjacently.
-    for (let slot = 0; slot < realMatchups; slot++) {
-      const itemA = ids[slot * 2];
-      const itemB = ids[slot * 2 + 1];
-      statements.push(
-        db
-          .prepare(
-            "INSERT INTO matchups (id, room_id, round, slot, item_a_id, item_b_id, is_bye) VALUES (?, ?, 1, ?, ?, ?, 0)"
-          )
-          .bind(crypto.randomUUID(), room.id, slot, itemA, itemB)
-      );
-    }
-
-    // Bye matchups: remaining items each get their own slot, already decided.
-    for (let i = 0; i < byes; i++) {
-      const slot = realMatchups + i;
-      const itemA = ids[realMatchups * 2 + i];
-      statements.push(
-        db
-          .prepare(
-            "INSERT INTO matchups (id, room_id, round, slot, item_a_id, is_bye, winner_item_id, decided_at) VALUES (?, ?, 1, ?, ?, 1, ?, ?)"
-          )
-          .bind(crypto.randomUUID(), room.id, slot, itemA, itemA, nowIso)
-      );
-    }
-
+    const statements = planRound(ids, 1).map((planned) =>
+      insertMatchupStatement(db, room.id, 1, planned, nowIso)
+    );
     await db.batch(statements);
   }
   // vote/mlt/tier modes need no extra setup — the claim above flipped status.

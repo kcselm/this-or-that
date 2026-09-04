@@ -3,5 +3,11 @@
   "private": true,
   "workspaces": [
     "apps/*"
-  ]
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=tot-api",
+    "deploy": "npm run deploy:api && npm run deploy:web",
+    "deploy:api": "npm run deploy --workspace=tot-api",
+    "deploy:web": "npm run deploy --workspace=mobile"
+  }
 }

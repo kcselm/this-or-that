@@ -1,3 +1,5 @@
+import type { PlannedSlot } from "../lib/bracket-shape";
+
 export type Room = {
   id: string;
   code: string;
@@ -202,6 +204,29 @@ export async function getCurrentRound(db: D1Database, roomId: string): Promise<n
     .bind(roomId)
     .first<{ max_round: number | null }>();
   return row?.max_round ?? 0;
+}
+
+// INSERT for one planned bracket slot. Byes are created already decided so
+// their item advances without anyone voting on it.
+export function insertMatchupStatement(
+  db: D1Database,
+  roomId: string,
+  round: number,
+  planned: PlannedSlot,
+  nowIso: string
+): D1PreparedStatement {
+  if (planned.itemB === null) {
+    return db
+      .prepare(
+        "INSERT INTO matchups (id, room_id, round, slot, item_a_id, is_bye, winner_item_id, decided_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)"
+      )
+      .bind(crypto.randomUUID(), roomId, round, planned.slot, planned.itemA, planned.itemA, nowIso);
+  }
+  return db
+    .prepare(
+      "INSERT INTO matchups (id, room_id, round, slot, item_a_id, item_b_id, is_bye) VALUES (?, ?, ?, ?, ?, ?, 0)"
+    )
+    .bind(crypto.randomUUID(), roomId, round, planned.slot, planned.itemA, planned.itemB);
 }
 
 export type MltVote = {

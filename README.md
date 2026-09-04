@@ -78,7 +78,8 @@ npx wrangler d1 execute tot-db --local --file=src/db/schema.sql
 npm run dev                            # local Worker at http://localhost:8787
 ```
 
-Deploy to production with `npm run deploy` (runs `wrangler deploy`).
+`npm run deploy` from this directory tests, migrates, then deploys the API.
+See [Deploying](#deploying) for the full stack.
 
 ### Run the mobile app
 
@@ -88,6 +89,34 @@ npm start                              # then press i / a / w for iOS, Android, 
 ```
 
 Point the app at your API by setting the API base URL (see `apps/mobile/lib/api.ts`).
+
+## Deploying
+
+Both halves of the stack live on Cloudflare and deploy from the repo root:
+
+```bash
+npm run deploy          # API + web frontend
+npm run deploy:api      # API only
+npm run deploy:web      # web frontend only
+```
+
+| Target | URL | Config |
+| --- | --- | --- |
+| API (Hono Worker + D1) | https://tot-api.kcselm93.workers.dev | `apps/api/wrangler.toml` |
+| Web app (static assets Worker) | https://tot-web.kcselm93.workers.dev | `apps/mobile/wrangler.jsonc` |
+
+`deploy:api` runs the test suite, applies any pending D1 migrations to the remote
+database, then deploys the Worker — in that order, so the schema is always ahead of
+the code that depends on it. Use `npm run deploy:worker -w tot-api` to push code
+without the test/migration steps.
+
+`deploy:web` runs `expo export --platform web` and uploads `dist/` as a static-assets
+Worker. Expo exports dynamic routes as literal `room/[code]/lobby.html` files, so the
+Worker is configured with `not_found_handling: "single-page-application"` — deep links
+like `/room/ABC123/lobby` fall back to `index.html` and expo-router resolves them
+client-side.
+
+Native iOS/Android builds are not automated; the app is not published to the app stores.
 
 ## Documentation
 

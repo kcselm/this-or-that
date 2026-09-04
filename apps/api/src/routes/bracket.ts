@@ -7,8 +7,10 @@ import {
   getMatchupVotesByRoom,
   getMatchupVotesByVoter,
   getCurrentRound,
+  insertMatchupStatement,
   type Matchup,
 } from "../db/queries";
+import { planRound } from "../lib/bracket-shape";
 import { notFound, invalidStatus, validationError } from "../lib/validation";
 
 export const bracket = createRouter();
@@ -295,26 +297,21 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
       winnerBySlot.set(slot, d.winnerId);
     }
 
-    const nextSlotCount = Math.floor(allThisRound.length / 2);
+    // Winners in slot order are the next round's competitors in bracket
+    // order. Rolling byes: an odd winner count sits one item out.
+    const winners = allThisRound.map((m) => winnerBySlot.get(m.slot)!);
+    const nextRound = planRound(winners, round + 1);
 
-    if (nextSlotCount === 0) {
-      // This round was the final — transition room to revealed.
+    if (nextRound.length === 0) {
+      // A lone winner means this round was the final — reveal the room.
       statements.push(
         db
           .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
           .bind(roomId)
       );
     } else {
-      for (let slot = 0; slot < nextSlotCount; slot++) {
-        const winnerA = winnerBySlot.get(slot * 2)!;
-        const winnerB = winnerBySlot.get(slot * 2 + 1)!;
-        statements.push(
-          db
-            .prepare(
-              "INSERT INTO matchups (id, room_id, round, slot, item_a_id, item_b_id, is_bye) VALUES (?, ?, ?, ?, ?, ?, 0)"
-            )
-            .bind(crypto.randomUUID(), roomId, round + 1, slot, winnerA, winnerB)
-        );
+      for (const planned of nextRound) {
+        statements.push(insertMatchupStatement(db, roomId, round + 1, planned, nowIso));
       }
     }
   }

@@ -26,7 +26,7 @@ import { getVoterId, clearActiveRoom, getActiveRoom, saveActiveRoom } from "../.
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
 import RankPlayerCard from "../../../components/RankPlayerCard";
-import BracketTree from "../../../components/BracketTree";
+import BracketView from "../../../components/BracketView";
 import MltRevealCard from "../../../components/MltRevealCard";
 import TierBoard from "../../../components/TierBoard";
 import { TIERS } from "../../../lib/tiers";
@@ -379,7 +379,7 @@ export default function ResultsScreen() {
         </Animated.Text>
 
         <View style={{ marginTop: spacing.lg }}>
-          <BracketTree rounds={bracketData.rounds} expandableBreakdowns />
+          <BracketView rounds={bracketData.rounds} expandableBreakdowns />
         </View>
 
         <Pressable
