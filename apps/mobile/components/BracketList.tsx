@@ -18,8 +18,13 @@ export default function BracketList({ rounds, expandableBreakdowns }: Props) {
           <Text style={styles.roundLabel}>ROUND {r.round}</Text>
           <View style={styles.matchupList}>
             {r.matchups.map((m) => {
-              const winnerIsA = m.winner?.id && m.winner.id === m.itemA?.id;
-              const winnerIsB = m.winner?.id && m.winner.id === m.itemB?.id;
+              // A matchup with no winner yet is a future pairing, not a loss:
+              // striking both names through reads as "already eliminated".
+              const decided = !!m.winner?.id;
+              const winnerIsA = decided && m.winner!.id === m.itemA?.id;
+              const winnerIsB = decided && m.winner!.id === m.itemB?.id;
+              const sideStyle = (isWinner: boolean) =>
+                !decided ? styles.pendingSide : isWinner ? styles.winnerSide : styles.loserSide;
               const expandable = expandableBreakdowns && !!m.voteBreakdown && !m.isBye;
               const isExpanded = expandable && expandedId === m.id;
 
@@ -43,17 +48,11 @@ export default function BracketList({ rounds, expandableBreakdowns }: Props) {
                       </View>
                     ) : (
                       <View style={styles.pair}>
-                        <Text
-                          style={[styles.side, winnerIsA ? styles.winnerSide : styles.loserSide]}
-                          numberOfLines={1}
-                        >
+                        <Text style={[styles.side, sideStyle(winnerIsA)]} numberOfLines={1}>
                           {m.itemA?.title ?? "?"}
                         </Text>
                         <Text style={styles.vsLabel}>vs</Text>
-                        <Text
-                          style={[styles.side, winnerIsB ? styles.winnerSide : styles.loserSide]}
-                          numberOfLines={1}
-                        >
+                        <Text style={[styles.side, sideStyle(winnerIsB)]} numberOfLines={1}>
                           {m.itemB?.title ?? "?"}
                         </Text>
                       </View>
@@ -140,6 +139,10 @@ const styles = StyleSheet.create({
   loserSide: {
     color: colors.mist,
     textDecorationLine: "line-through",
+  },
+  pendingSide: {
+    color: colors.slate,
+    fontWeight: "500",
   },
   byeText: {
     color: colors.mist,

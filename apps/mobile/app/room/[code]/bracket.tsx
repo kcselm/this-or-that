@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
+  useWindowDimensions,
 } from "react-native";
 import { showAlert } from "../../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -19,11 +20,18 @@ import {
   type BracketMatchup,
 } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
+import { matchupLayout } from "../../../lib/matchup-layout";
 import { colors, spacing, typography } from "../../../lib/theme";
 
 export default function BracketScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
+  // Side by side, each card only gets a sliver of a phone screen and long
+  // titles get clipped. Below tablet width the pair stacks instead, so each
+  // card spans the full column. The card size goes to the cards themselves so
+  // they can fit their type to it.
+  const { stacked, card } = matchupLayout(window.width, window.height, insets.top);
   const { code, name, isCreator } = useLocalSearchParams<{
     code: string;
     name: string;
@@ -182,16 +190,22 @@ export default function BracketScreen() {
         </Text>
       </View>
 
-      <Animated.View key={current.id} entering={FadeIn.duration(200)} style={styles.matchupArea}>
+      <Animated.View
+        key={current.id}
+        entering={FadeIn.duration(200)}
+        style={[styles.matchupArea, stacked && styles.matchupAreaStacked]}
+      >
         <MatchupCard
           title={current.itemA?.title ?? "?"}
+          available={card}
           selected={selectedItemId === current.itemA?.id}
           disabled={submitting}
           onPress={() => current.itemA && handlePick(current.itemA.id)}
         />
-        <Text style={styles.vs}>vs</Text>
+        <Text style={[styles.vs, stacked && styles.vsStacked]}>vs</Text>
         <MatchupCard
           title={current.itemB?.title ?? "?"}
+          available={card}
           selected={selectedItemId === current.itemB?.id}
           disabled={submitting}
           onPress={() => current.itemB && handlePick(current.itemB.id)}
@@ -238,11 +252,18 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     gap: spacing.md,
   },
+  matchupAreaStacked: {
+    flexDirection: "column",
+  },
   vs: {
     ...typography.h2,
     color: colors.mist,
     alignSelf: "center",
     paddingHorizontal: 4,
+  },
+  vsStacked: {
+    paddingHorizontal: 0,
+    paddingVertical: 2,
   },
   hint: {
     ...typography.body,

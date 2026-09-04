@@ -10,6 +10,7 @@ import {
 import Animated, { FadeIn } from "react-native-reanimated";
 import type { BracketRound, BracketMatchup } from "../lib/api";
 import { layoutBracket, type BracketLine, type SegmentTone } from "../lib/bracket-layout";
+import { splitTitle } from "../lib/matchup-text";
 import { colors, spacing, radius, typography, shadows } from "../lib/theme";
 
 // A paper tournament sheet: one name per line, pairs joined by a bracket
@@ -197,8 +198,12 @@ function NameLine({
     <>
       <View style={[styles.nameBox, { height: line.height }, selected && styles.nameBoxSelected]}>
         {line.title !== null && (
+          // A bracket column is only ~100pt wide, so anything the author
+          // appended after a dash ("Title - a sentence about it") would just
+          // push the name itself out of view. The sheet shows the name; the
+          // tap-through detail below shows the entry in full.
           <Text style={[styles.name, { fontSize }, nameStyle(line)]} numberOfLines={maxLines}>
-            {line.title}
+            {splitTitle(line.title).name}
           </Text>
         )}
       </View>
