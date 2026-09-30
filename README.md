@@ -14,11 +14,14 @@ The room creator picks a mode when creating a room:
 | **◎ Blind Rank** | Pick 5 items. Players rank them one at a time without knowing what's coming next. |
 | **⚔ Bracket** | Items face off in a tournament. Each round everyone votes on the matchups until a winner emerges. |
 | **★ Most Likely To** | Pick prompts like *"most likely to ghost the group chat."* For each one, vote on the person in the room who fits best. |
+| **▤ Tier List** | Everyone sorts the items into S–D tiers. The reveal shows a consensus board and every player's board. |
+
+Blind Rank rooms can **keep playing**: the host picks who hosts the next round, and everyone moves into it automatically.
 
 ## How it works
 
 1. **Create** a room — choose a mode, a topic, how many people to expect, and your display name.
-2. **Add items** (or prompts) — up to 15.
+2. **Add items** (or prompts) — each mode has its own range, from exactly 5 (Blind Rank) up to 16 (Bracket).
 3. **Share** the 6-character room code. Friends join with just the code and a display name.
 4. **Start** when everyone's in. Items lock and voting begins.
 5. **Vote** — each person swipes/ranks/picks. Progress is saved after every action, so you can close the app and resume.
@@ -38,32 +41,40 @@ No authentication: each device gets an anonymous ID stored locally. Room codes u
 ```
 this-or-that/
 ├── apps/
-│   ├── mobile/              # Expo app
-│   │   ├── app/             # Expo Router routes
-│   │   │   ├── index.tsx    # Home (Create / Join)
-│   │   │   ├── create/      # mode → topic → items → share
-│   │   │   ├── join/        # code → name
-│   │   │   └── room/[code]/ # lobby, swipe, rank, bracket, mlt, waiting, results
-│   │   ├── components/      # SwipeCard, ItemList, ResultsBar, ...
-│   │   └── lib/             # api client, storage, shuffle, theme
-│   └── api/                 # Hono + Cloudflare Workers
+│   ├── mobile/                 # Expo app
+│   │   ├── app/                # Expo Router routes
+│   │   │   ├── index.tsx       # Home (Create / Join / My Lists / Past Results)
+│   │   │   ├── create/         # mode → topic → share (host setup)
+│   │   │   ├── join/           # code → name
+│   │   │   ├── room/[code]/    # lobby, a play screen per mode, waiting, results
+│   │   │   ├── lists/          # saved item lists
+│   │   │   └── history.tsx     # past results kept on the device
+│   │   ├── components/         # cards, boards, results/ and share/ pieces
+│   │   └── lib/                # api client, modes, storage, polling, theme
+│   └── api/                    # Hono + Cloudflare Workers
 │       ├── src/
-│       │   ├── index.ts     # App entry + route registration
-│       │   ├── routes/      # rooms, votes, results, rankings, bracket, mlt
-│       │   ├── db/          # schema.sql + typed query helpers
-│       │   └── lib/         # code generation, validation, mlt prompts
-│       └── wrangler.toml    # Workers config + D1 binding
-├── CLAUDE.md                # Full project spec & conventions
-├── APISPEC.md               # REST API reference
-└── DECISIONS.md             # Technical decisions & rationale
+│       │   ├── index.ts        # app entry, routes, hourly cleanup cron
+│       │   ├── routes/         # rooms, results, one submission route per mode
+│       │   ├── modes/          # one handler per game mode
+│       │   ├── db/             # query helpers + schema reference
+│       │   └── lib/            # codes, validation, participants, cleanup
+│       ├── migrations/         # D1 migrations
+│       ├── test/               # Vitest against the real Worker + local D1
+│       └── wrangler.toml
+├── packages/
+│   └── shared/                 # @tot/shared: modes and rules, tiers, bracket shape
+├── CLAUDE.md                   # project context and conventions
+├── APISPEC.md                  # REST API reference
+└── DECISIONS.md                # technical decisions & rationale
 ```
 
 ## Getting started
 
-Requires Node.js 18+ and npm. Install everything from the repo root:
+Requires Node.js 22+ and npm. Install everything from the repo root:
 
 ```bash
 npm install
+npm run check        # format check, lint, typecheck, and all tests (what CI runs)
 ```
 
 ### Run the API (Cloudflare Workers)
@@ -71,10 +82,10 @@ npm install
 ```bash
 cd apps/api
 
-# First-time setup: create the D1 database and apply the schema
+# First-time setup for your own Cloudflare account: create the D1 database
 npx wrangler d1 create tot-db          # then paste the database_id into wrangler.toml
-npx wrangler d1 execute tot-db --local --file=src/db/schema.sql
 
+npm run migrate:local                  # apply migrations to the local D1
 npm run dev                            # local Worker at http://localhost:8787
 ```
 
@@ -88,7 +99,11 @@ cd apps/mobile
 npm start                              # then press i / a / w for iOS, Android, web
 ```
 
-Point the app at your API by setting the API base URL (see `apps/mobile/lib/api.ts`).
+The app talks to the production API by default. To use your local Worker:
+
+```bash
+EXPO_PUBLIC_API_BASE=http://localhost:8787/api npm start
+```
 
 ## Deploying
 
@@ -108,7 +123,8 @@ npm run deploy:web      # web frontend only
 `deploy:api` runs the test suite, applies any pending D1 migrations to the remote
 database, then deploys the Worker — in that order, so the schema is always ahead of
 the code that depends on it. Use `npm run deploy:worker -w tot-api` to push code
-without the test/migration steps.
+without the test/migration steps. The Worker also runs an hourly cron that deletes
+rooms past their 48-hour expiry.
 
 `deploy:web` runs `expo export --platform web` and uploads `dist/` as a static-assets
 Worker. Expo exports dynamic routes as literal `room/[code]/lobby.html` files, so the

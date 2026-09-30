@@ -1,391 +1,327 @@
 # API Specification
 
-Base URL: `https://api.thisorthat.app` (or your Cloudflare Workers custom domain)
+Base URL: `https://tot-api.kcselm93.workers.dev/api` (local: `http://localhost:8787/api`)
 
-All requests and responses use JSON. All timestamps are ISO 8601 UTC.
+All requests and responses are JSON. Timestamps are ISO 8601 UTC.
 
-## Endpoints
+**Conventions**
 
-### POST /api/rooms
+- `:code` is the 6-character room code (case-insensitive).
+- `voterId` / `creatorVoterId` are the caller's anonymous device id — the only credential. They are sent by the client but **never returned** by any endpoint. Other players are identified by their public `participantId`.
+- Unless noted, every endpoint returns `404 ROOM_NOT_FOUND` for unknown or expired rooms.
+- Per-mode limits (item counts, title lengths, player minimums) come from `MODE_RULES` in `packages/shared/src/modes.ts`:
 
-Create a new room (without items — items are added separately).
+| Mode      | Items        | Title length | Players to start | Players to auto-reveal | Suggestions |
+| --------- | ------------ | ------------ | ---------------- | ---------------------- | ----------- |
+| `vote`    | 2–15         | 100          | 1                | 2                      | yes         |
+| `rank`    | exactly 5    | 100          | 1                | 2                      | no          |
+| `bracket` | 4–16         | 100          | 1                | 2                      | no          |
+| `mlt`     | 3–15 prompts | 80           | 3                | 3                      | yes         |
+| `tier`    | 3–12         | 100          | 1                | 2                      | no          |
 
-**Request body:**
+## Rooms
+
+### POST /rooms
+
+Create a room. The creator is joined as its first participant.
 
 ```json
 {
   "topic": "Friday dinner",
-  "expectedCount": 5,
-  "creatorVoterId": "a1b2c3d4-uuid",
-  "creatorName": "Alex"
+  "creatorVoterId": "uuid",
+  "creatorName": "Alex",
+  "mode": "vote",
+  "allowSuggestions": false,
+  "previousRoomCode": "HK7M3N"
 }
 ```
 
-**Validation rules:**
+- `topic`: 1–100 characters after trimming. `creatorName`: 1–30 after trimming.
+- `mode`: optional, defaults to `vote`.
+- `allowSuggestions`: optional; ignored for modes that don't allow suggestions.
+- `previousRoomCode`: optional, blind rank only. Chains this room onto a revealed rank room as its next round. Only the next host that room's host picked may do this.
 
-- `topic`: required, string, 1-100 characters
-- `expectedCount`: required, integer, 2-20
-- `creatorVoterId`: required, string (UUID format)
-- `creatorName`: required, string, 1-30 characters
-
-**Response (201):**
+**201**
 
 ```json
 {
-  "id": "room-uuid",
+  "id": "uuid",
   "code": "HK7M3N",
   "topic": "Friday dinner",
-  "expectedCount": 5,
-  "createdAt": "2026-04-12T10:00:00Z",
-  "expiresAt": "2026-04-14T10:00:00Z"
+  "mode": "vote",
+  "createdAt": "2026-09-29T10:00:00.000Z",
+  "expiresAt": "2026-10-01T10:00:00.000Z",
+  "roundNumber": 1
 }
 ```
 
-**Errors:**
+Errors: `400 VALIDATION_ERROR`; with `previousRoomCode`: `400 INVALID_STATUS` (not revealed / not rank), `403 NOT_NEXT_HOST`, `409 SERIES_CONTINUED` (next round already exists).
 
-- 400: Validation error (missing fields, etc.)
+### GET /rooms/:code?voterId=
 
----
+Room details. Pass `voterId` to get your own submissions back for resuming.
 
-### POST /api/rooms/:code/items
-
-Add items to a room. Only the room creator can add items. Room must be in `open` status (items are locked once voting begins).
-
-Items can be added one at a time or in bulk. Called from the "Add items" screen.
-
-**Request body:**
+**200**
 
 ```json
 {
-  "items": ["Thai place", "Pizza", "Sushi", "Tacos", "Burgers"],
-  "creatorVoterId": "a1b2c3d4-uuid"
-}
-```
-
-**Validation rules:**
-
-- `items`: required, array of strings, 1-15 items, each 1-100 characters
-- `creatorVoterId`: required, must match the room's creator
-- Total items in the room must not exceed 15 after adding
-- Room must be in `open` status
-
-**Response (201):**
-
-```json
-{
-  "items": [
-    { "id": "item-uuid-1", "title": "Thai place", "sortOrder": 0 },
-    { "id": "item-uuid-2", "title": "Pizza", "sortOrder": 1 },
-    { "id": "item-uuid-3", "title": "Sushi", "sortOrder": 2 },
-    { "id": "item-uuid-4", "title": "Tacos", "sortOrder": 3 },
-    { "id": "item-uuid-5", "title": "Burgers", "sortOrder": 4 }
-  ],
-  "totalItems": 5
-}
-```
-
-**Errors:**
-
-- 400: Validation error (too many items, empty titles, room not in `open` status, etc.)
-- 403: Caller is not the room creator
-- 404: Room not found or expired
-
----
-
-### DELETE /api/rooms/:code/items/:itemId
-
-Delete a single item from a room. Only the room creator can delete items. Room must be in `open` status.
-
-**Query params:**
-
-- `creatorVoterId` (required): Must match the room's creator
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "totalItems": 4
-}
-```
-
-**Errors:**
-
-- 400: Room not in `open` status
-- 403: Caller is not the room creator
-- 404: Room, or item, not found or expired
-
----
-
-### POST /api/rooms/:code/start
-
-Transition a room from `open` to `voting`. Only the room creator can start voting. After this, items are locked and participants can begin swiping.
-
-**Request body:**
-
-```json
-{
-  "creatorVoterId": "a1b2c3d4-uuid"
-}
-```
-
-**Validation rules:**
-
-- `creatorVoterId`: required, must match the room's creator
-- Room must be in `open` status
-- Room must have at least 2 items
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "status": "voting",
-  "itemCount": 5
-}
-```
-
-**Errors:**
-
-- 400: Room not in `open` status, or fewer than 2 items
-- 403: Caller is not the room creator
-- 404: Room not found or expired
-
----
-
-### GET /api/rooms/:code
-
-Fetch room details and items. Optionally accepts a voter ID to include their existing votes.
-
-**Query params:**
-
-- `voterId` (optional): If provided, response includes which items this voter has already voted on
-
-**Response (200):**
-
-```json
-{
-  "id": "room-uuid",
+  "id": "uuid",
   "code": "HK7M3N",
   "topic": "Friday dinner",
-  "expectedCount": 5,
   "status": "voting",
-  "items": [
-    { "id": "item-uuid-1", "title": "Thai place" },
-    { "id": "item-uuid-2", "title": "Pizza" },
-    { "id": "item-uuid-3", "title": "Sushi" },
-    { "id": "item-uuid-4", "title": "Tacos" },
-    { "id": "item-uuid-5", "title": "Burgers" }
-  ],
-  "myVotes": {
-    "item-uuid-1": "yes",
-    "item-uuid-3": "no"
-  }
+  "allowSuggestions": false,
+  "mode": "vote",
+  "items": [{ "id": "uuid", "title": "Tacos", "addedBy": null }],
+  "myVotes": { "item-uuid": "yes" },
+  "roundNumber": 1,
+  "nextRoomCode": "Q7W2ZK"
 }
 ```
 
-Notes:
+- `status`: `open` | `voting` | `revealed` | `closed`.
+- `items`, in the host's order (clients shuffle per player). While `open`, only the host sees them, unless it's a `vote` room with suggestions on. Once started, blind rank and bracket rooms never list items here — they're dealt by `/next-item` and `/bracket`. `addedBy` names a participant who suggested the item.
+- Resume state, only with `voterId`: `myVotes` (vote: itemId → `yes`|`no`), `myRankings` (rank: itemId → rank), `myMltVotes` (mlt: itemId → participantId), `myTiers` (tier: itemId → tier).
+- `nextRoomCode`: present when a later round of this room's series exists.
 
-- `status` is one of: `open` (creator adding items), `voting` (swiping in progress), `revealed` (results visible).
-- When status is `open`, only the creator sees `items`. Non-creators see an empty items array and know to show a "waiting for host" lobby screen.
-- When status is `voting` or `revealed`, all participants see items.
-- `myVotes` is only present if `voterId` query param is provided. It's a map of itemId → vote for items the voter has already voted on. This enables resume-after-close.
-- Items are returned in the creator's original sort order. The client is responsible for shuffling based on the voter's ID.
+### POST /rooms/:code/join
 
-**Errors:**
+Join, or rename yourself if already joined. Allowed while `open` or `voting`.
 
-- 404: Room not found or expired
+```json
+{ "voterId": "uuid", "voterName": "Jordan" }
+```
 
----
+**200** `{ "success": true }`. Errors: `400 INVALID_STATUS` if closed or revealed.
 
-### POST /api/rooms/:code/votes
+### GET /rooms/:code/participants?voterId=
 
-Submit a single vote. Called once per swipe (not batched). Room must be in `voting` status.
-
-**Request body:**
+**200**
 
 ```json
 {
-  "itemId": "item-uuid-1",
-  "voterId": "a1b2c3d4-uuid",
-  "voterName": "Jordan",
-  "vote": "yes"
+  "participants": [{ "participantId": "uuid", "name": "Alex", "isCreator": true, "isYou": false }]
 }
 ```
 
-**Validation rules:**
+In join order. `isYou` is set when `voterId` matches.
 
-- `itemId`: required, must belong to this room
-- `voterId`: required, string
-- `voterName`: required, string, 1-30 characters
-- `vote`: required, "yes" or "no"
-- Room must be in `voting` status
+### POST /rooms/:code/items
 
-**Response (201):**
+Add items while the room is `open`. The host adds in bulk; participants may add one at a time if suggestions are on.
+
+```json
+{ "items": ["Tacos", "Sushi"], "creatorVoterId": "uuid" }
+```
+
+or a participant suggestion:
+
+```json
+{ "item": "Pho", "voterId": "uuid", "voterName": "Jordan" }
+```
+
+**201**
 
 ```json
 {
-  "success": true,
-  "progress": {
-    "voted": 3,
-    "total": 5
-  }
+  "items": [{ "id": "uuid", "title": "Tacos", "sortOrder": 0 }],
+  "totalItems": 2
 }
 ```
 
-`progress` shows how many items this voter has now voted on out of the total items in the room. This drives the "3 of 5" progress indicator on the swipe screen.
+Errors: `400 VALIDATION_ERROR` (empty or too-long titles, over the mode's item limit, not a participant), `400 INVALID_STATUS` (not open, suggestions off or not allowed for the mode).
 
-**Errors:**
+### DELETE /rooms/:code/items/:itemId?creatorVoterId=
 
-- 404: Room not found or expired
-- 400: Invalid item ID, missing fields, room not in `voting` status
-- If the voter has already voted on this item, the existing vote is updated (upsert behavior). This makes the endpoint resilient to network retries and simplifies the client.
+Host only, while `open`. **200** `{ "success": true, "totalItems": 4 }`. Errors: `403 NOT_CREATOR`, `400 INVALID_STATUS`, `404` for an unknown item.
 
----
+### PATCH /rooms/:code/settings
 
-### GET /api/rooms/:code/status
-
-Check overall voting progress. Used by the waiting screen for polling.
-
-**Response (200):**
+Host only, while `open`.
 
 ```json
-{
-  "expectedCount": 5,
-  "completedCount": 3,
-  "isRevealed": false,
-  "voters": [
-    { "name": "Alex", "completed": true },
-    { "name": "Jordan", "completed": true },
-    { "name": "Sam", "completed": true },
-    { "name": "Riley", "completed": false }
-  ]
-}
+{ "creatorVoterId": "uuid", "allowSuggestions": true }
 ```
 
-Notes:
+**200** `{ "success": true, "allowSuggestions": true }`. Errors: `400 INVALID_STATUS` for modes without suggestions.
 
-- A voter is "completed" when they have voted on ALL items in the room.
-- `voters` only includes people who have cast at least one vote.
-- `isRevealed` becomes true when `completedCount >= expectedCount`.
-- The `voters` list lets the waiting screen show "Alex ✓, Jordan ✓, Sam ✓, Riley is still swiping..."
+### POST /rooms/:code/start
 
-**Errors:**
+Host only. Moves `open` → `voting` atomically (a second concurrent start gets a 400). Blind rank rooms get their shared deal order; bracket rooms get round 1.
 
-- 404: Room not found or expired
+```json
+{ "creatorVoterId": "uuid" }
+```
 
----
+**200** `{ "success": true, "status": "voting", "itemCount": 5, "mode": "vote" }`. Errors: `400 VALIDATION_ERROR` (item count outside the mode's range, too few players), `400 INVALID_STATUS` (already started), `403 NOT_CREATOR`.
 
-### GET /api/rooms/:code/results
+### POST /rooms/:code/close
 
-Get final ranked results. Only returns full data if voting is complete.
+Host only. Ends an `open` or `voting` room for everyone. **200** `{ "success": true, "status": "closed" }`. Errors: `400 INVALID_STATUS` if already closed or revealed.
 
-**Response when revealed (200):**
+## Playing
+
+Every submission requires the caller to have joined, the room to be `voting`, and the right endpoint for the room's mode — otherwise `400` with a message naming the right endpoint. When a submission completes the last player, the room reveals itself (bracket: when the final is decided).
+
+### POST /rooms/:code/votes — `vote`
+
+```json
+{ "itemId": "uuid", "voterId": "uuid", "voterName": "Jordan", "vote": "yes" }
+```
+
+Upserts: voting again on an item changes the vote. **201** `{ "success": true, "progress": { "voted": 3, "total": 5 } }`.
+
+### GET /rooms/:code/next-item?voterId= — `rank`
+
+The next item to place, in the room's shared random order, or `null` when done. **200** `{ "item": { "id": "uuid", "title": "Up" }, "progress": { "placed": 2, "total": 5 } }`.
+
+### POST /rooms/:code/rankings — `rank`
+
+```json
+{ "itemId": "uuid", "voterId": "uuid", "voterName": "Jordan", "rank": 1 }
+```
+
+Placements are final: re-placing an item or reusing a rank is a `400`. **201** `{ "success": true, "progress": { "placed": 3, "total": 5 } }`.
+
+### GET /rooms/:code/bracket?voterId= — `bracket`
+
+Rounds created so far. Future rounds don't exist until the previous one closes.
 
 ```json
 {
-  "revealed": true,
-  "topic": "Friday dinner",
-  "totalVoters": 5,
-  "results": [
+  "currentRound": 2,
+  "totalRounds": 3,
+  "rounds": [
     {
-      "itemId": "item-uuid-3",
-      "title": "Sushi",
-      "yesCount": 5,
-      "noCount": 0,
-      "yesPercentage": 100
-    },
-    {
-      "itemId": "item-uuid-1",
-      "title": "Thai place",
-      "yesCount": 4,
-      "noCount": 1,
-      "yesPercentage": 80
-    },
-    {
-      "itemId": "item-uuid-4",
-      "title": "Tacos",
-      "yesCount": 3,
-      "noCount": 2,
-      "yesPercentage": 60
-    },
-    {
-      "itemId": "item-uuid-2",
-      "title": "Pizza",
-      "yesCount": 2,
-      "noCount": 3,
-      "yesPercentage": 40
-    },
-    {
-      "itemId": "item-uuid-5",
-      "title": "Burgers",
-      "yesCount": 1,
-      "noCount": 4,
-      "yesPercentage": 20
+      "round": 1,
+      "matchups": [
+        {
+          "id": "uuid",
+          "slot": 0,
+          "itemA": { "id": "uuid", "title": "Chips" },
+          "itemB": { "id": "uuid", "title": "Popcorn" },
+          "winner": { "id": "uuid", "title": "Popcorn" },
+          "isBye": false,
+          "decidedByTiebreak": false,
+          "voteBreakdown": [{ "voterName": "Alex", "pickedItemId": "uuid", "isYou": true }]
+        }
+      ]
     }
-  ]
+  ],
+  "myVotes": { "matchup-uuid": "picked-item-uuid" }
 }
 ```
 
-**Response when not yet revealed (200):**
+- `currentRound` is `null` once revealed. A bye has `itemB: null` and is decided up front.
+- `voteBreakdown` only appears on decided matchups in past rounds, so nobody sees the current round's votes.
+- Ties are settled by coin flip (`decidedByTiebreak`).
+
+### POST /rooms/:code/matchup-votes — `bracket`
+
+```json
+{ "matchupId": "uuid", "voterId": "uuid", "voterName": "Jordan", "pickedItemId": "uuid" }
+```
+
+Only matchups in the current round; one vote each. **201** `{ "success": true, "progress": { "votedThisRound": 1, "totalThisRound": 2 } }`.
+
+### GET /mlt/prompts — `mlt`
+
+The curated prompt library for the host's picker. **200** `{ "prompts": [{ "id": "ghost-group-chat", "text": "Most likely to…", "tags": [] }] }`.
+
+### POST /rooms/:code/mlt-votes — `mlt`
+
+```json
+{ "itemId": "uuid", "voterId": "uuid", "voterName": "Jordan", "targetParticipantId": "uuid" }
+```
+
+Upserts: voting again on a prompt changes the pick. **201** `{ "success": true, "progress": { "voted": 2, "total": 5 } }`.
+
+### POST /rooms/:code/tiers — `tier`
+
+Lock in a whole board at once. Every item must be placed exactly once in `S`, `A`, `B`, `C`, or `D`; a second lock-in is a `400`.
 
 ```json
 {
-  "revealed": false,
-  "completedCount": 3,
-  "expectedCount": 5
+  "voterId": "uuid",
+  "voterName": "Jordan",
+  "placements": [{ "itemId": "uuid", "tier": "S" }]
 }
 ```
 
-**Errors:**
+**201** `{ "success": true, "progress": { "placed": 4, "total": 4 }, "isRevealed": false }`.
 
-- 404: Room not found or expired
+## Progress and results
 
----
+### GET /rooms/:code/status
 
-## Room Code Generation
-
-Characters used: `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (27 characters)
-
-- Excludes: 0, O, 1, I, L (commonly confused)
-- Always uppercase
-- 6 characters long
-- Generated server-side, checked for uniqueness against existing non-expired rooms
-
-## Error Response Format
-
-All errors follow this structure:
+Polled by the lobby and waiting screens.
 
 ```json
 {
-  "error": {
-    "code": "ROOM_NOT_FOUND",
-    "message": "Room not found or expired"
-  }
+  "totalVoters": 3,
+  "completedCount": 2,
+  "isRevealed": false,
+  "voters": [{ "name": "Alex", "completed": true }]
 }
 ```
 
-Error codes:
+- A voter is complete once they've submitted for every item (bracket: every real matchup in the current round).
+- Bracket adds `currentRound` (`null` once revealed) and `totalThisRound`.
+- Blind rank adds `roundNumber`, `nextHost` (`{ participantId, name }` or `null`), and `nextRoomCode` (or `null`) for keep-playing.
 
-- `VALIDATION_ERROR`: Invalid input (400)
-- `ROOM_NOT_FOUND`: Room doesn't exist or has expired (404)
-- `ROOM_EXPIRED`: Room has passed its expiry time (410)
-- `NOT_CREATOR`: Caller is not the room creator (403)
-- `INVALID_STATUS`: Action not allowed in current room status (400)
-- `INTERNAL_ERROR`: Server error (500)
+### GET /rooms/:code/results?voterId=
 
-## Rate Limiting
+Before the reveal:
 
-Cloudflare Workers has built-in rate limiting. Suggested limits:
+```json
+{ "revealed": false, "mode": "vote", "completedCount": 2, "totalVoters": 3 }
+```
 
-- POST /api/rooms: 10/minute per IP (prevent room spam)
-- POST /api/rooms/:code/votes: 60/minute per IP (generous to allow fast swiping)
-- GET endpoints: 120/minute per IP (polling needs headroom)
+(Bracket adds `currentRound` and `totalThisRound`.)
 
-## CORS
+After the reveal, every response has `revealed: true`, `mode`, and `topic`, plus:
 
-The API must return appropriate CORS headers for the Expo web build:
+- **vote** — `totalVoters` and `results: [{ itemId, title, yesCount, noCount, yesPercentage }]`, highest yes-percentage first (ties keep the host's order).
+- **rank** — `players: [{ participantId, name, isCreator, isYou, rankings: [{ rank, itemId, title }] }]`: only complete boards, you first, then the host, then by name.
+- **bracket** — `totalRounds`, `winner` (`{ id, title }`, or `null` if the host revealed before the final), and `rounds` as in `/bracket` with every breakdown.
+- **mlt** — `prompts: [{ itemId, text, sortOrder, tallies: [{ targetParticipantId, name, count }], winners: [{ participantId, name }], totalVotes }]` and `leaderboard: [{ participantId, name, wins, isYou }]`. Everyone tied for the most votes wins the prompt.
+- **tier** — `consensus: [{ tier, items: [{ itemId, title, average }] }]` (each item's average tier value, S=5…D=1, rounded back to a tier) and `players` like rank, with `placements: [{ itemId, title, tier }]`.
 
-- `Access-Control-Allow-Origin: *` (for MVP; tighten in production)
-- `Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS`
-- `Access-Control-Allow-Headers: Content-Type`
+### POST /rooms/:code/reveal
+
+Host only: reveal a `voting` room early (e.g. someone left). **200** `{ "success": true, "status": "revealed" }`. Errors: `403 NOT_CREATOR`, `400 INVALID_STATUS`.
+
+### POST /rooms/:code/next-host — `rank`
+
+Host only, after the reveal: pick who hosts the next round. Omit `nextParticipantId` for a random draw that skips anyone who has hosted this series (then resets, never repeating the current host back-to-back).
+
+```json
+{ "creatorVoterId": "uuid", "nextParticipantId": "uuid" }
+```
+
+**200** `{ "nextHost": { "participantId": "uuid", "name": "Bob" } }`. Errors: `409 SERIES_CONTINUED` once the next round exists.
+
+## Room codes and expiry
+
+- 6 characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (31 characters, no `0 O 1 I L`) — about 887 million codes.
+- Rooms expire 48 hours after creation and 404 from then on. An hourly cron (`[triggers]` in `wrangler.toml`) deletes expired rooms and their rows, freeing their codes.
+
+## Errors
+
+```json
+{ "error": { "code": "ROOM_NOT_FOUND", "message": "Room not found or expired" } }
+```
+
+| Code               | Status | Meaning                                              |
+| ------------------ | ------ | ---------------------------------------------------- |
+| `VALIDATION_ERROR` | 400    | Bad input, or not a participant                      |
+| `INVALID_STATUS`   | 400    | Not allowed in the room's current status or mode     |
+| `NOT_CREATOR`      | 403    | Host-only action                                     |
+| `NOT_NEXT_HOST`    | 403    | Someone else was picked to host the next round       |
+| `ROOM_NOT_FOUND`   | 404    | Unknown or expired room                              |
+| `SERIES_CONTINUED` | 409    | The next round has already been created              |
+| `INTERNAL_ERROR`   | 500    | Server error                                         |
+
+## CORS and limits
+
+- CORS allows any origin (`GET, POST, PATCH, DELETE, OPTIONS`; `Content-Type`). There are no cookies, so this exposes nothing extra.
+- There is no rate limiting yet. Candidates if abuse appears: room creation and joins per IP via the Workers rate-limiting binding.
