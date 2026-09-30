@@ -11,10 +11,14 @@ const CHILD_TABLES = [
   "items",
 ] as const;
 
-// Rooms deleted per run. Each run is one D1 batch (a single transaction), so
-// this caps how much work one cron invocation does. The cron runs hourly, which
-// is far more capacity than rooms are created.
+// Rooms deleted per D1 batch. Each batch is a single transaction, so this caps
+// how much one transaction does; the weekly cron runs batches until nothing
+// expired is left (see purgeAllExpiredRooms).
 export const PURGE_BATCH_SIZE = 200;
+
+// Safety stop for one cron run: 50 batches is 10,000 rooms, far more than a
+// week of use. Anything left over is picked up the following week.
+const MAX_BATCHES_PER_RUN = 50;
 
 /** Delete up to PURGE_BATCH_SIZE expired rooms and all their rows. Returns how many rooms were deleted. */
 export async function purgeExpiredRooms(db: D1Database, now: string): Promise<number> {
@@ -29,4 +33,15 @@ export async function purgeExpiredRooms(db: D1Database, now: string): Promise<nu
 
   const results = await db.batch(statements);
   return results[results.length - 1].meta.changes ?? 0;
+}
+
+/** Delete every expired room, a batch at a time. Returns how many rooms were deleted. */
+export async function purgeAllExpiredRooms(db: D1Database, now: string): Promise<number> {
+  let total = 0;
+  for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
+    const deleted = await purgeExpiredRooms(db, now);
+    total += deleted;
+    if (deleted < PURGE_BATCH_SIZE) break;
+  }
+  return total;
 }

@@ -11,6 +11,7 @@ binding = "DB"
 database_name = "tot-db"
 database_id = "66fe869d-6c74-4d25-9b1b-8f78f09ce83a"
 
-# Hourly cleanup of expired rooms (see src/lib/cleanup.ts).
+# Weekly cleanup of expired rooms, Mondays 04:00 UTC (see src/lib/cleanup.ts).
+# Expired rooms already 404 on every request; this only reclaims their rows.
 [triggers]
-crons = ["0 * * * *"]
+crons = ["0 4 * * 1"]
