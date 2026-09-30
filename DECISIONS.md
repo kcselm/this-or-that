@@ -161,10 +161,11 @@ This document captures why each technical decision was made, so future-you (or c
 
 ## Expired Rooms Are Deleted by a Cron
 
-**Decision**: Every request treats a room as gone once `expires_at` passes, and an hourly Cron Trigger deletes expired rooms and all their rows.
+**Decision**: Every request treats a room as gone once `expires_at` passes, and a weekly Cron Trigger deletes expired rooms and all their rows.
 
 **Why**:
 
 - Per-request checks alone left dead rows forever, and since `rooms.code` is `UNIQUE`, a new room that drew a dead room's code failed to insert
-- Deleting in one D1 batch (children first, because D1 enforces foreign keys) keeps each run a single transaction; runs are capped at 200 rooms, far above the creation rate
+- Weekly is plenty for how little the app is used: expiry is already enforced on every request, so the cron only reclaims space and frees codes
+- Deletes run in D1 batches of 200 rooms (children first, because D1 enforces foreign keys), each a single transaction, repeated until nothing expired is left
 - `expires_at` is compared against a bound ISO timestamp, never SQLite's `datetime('now')`, whose different format made rooms outlive their 48 hours

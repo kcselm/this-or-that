@@ -303,7 +303,7 @@ Host only, after the reveal: pick who hosts the next round. Omit `nextParticipan
 ## Room codes and expiry
 
 - 6 characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (31 characters, no `0 O 1 I L`) — about 887 million codes.
-- Rooms expire 48 hours after creation and 404 from then on. An hourly cron (`[triggers]` in `wrangler.toml`) deletes expired rooms and their rows, freeing their codes.
+- Rooms expire 48 hours after creation and 404 from then on. A weekly cron (`[triggers]` in `wrangler.toml`) deletes expired rooms and their rows, freeing their codes.
 
 ## Errors
 

@@ -8,7 +8,7 @@ import { rankings } from "./routes/rankings";
 import { bracket } from "./routes/bracket";
 import { mlt, mltPrompts } from "./routes/mlt";
 import { tiers } from "./routes/tiers";
-import { purgeExpiredRooms } from "./lib/cleanup";
+import { purgeAllExpiredRooms } from "./lib/cleanup";
 import { nowIso } from "./db/queries";
 
 const app = new Hono<App>();
@@ -44,11 +44,11 @@ app.route("/api/mlt", mltPrompts);
 
 export default {
   fetch: app.fetch,
-  // Hourly cron (wrangler.toml): delete expired rooms so the tables stay small
+  // Weekly cron (wrangler.toml): delete expired rooms so the tables stay small
   // and their codes can be reused.
   async scheduled(_controller, env, ctx) {
     ctx.waitUntil(
-      purgeExpiredRooms(env.DB, nowIso()).then((deleted) => {
+      purgeAllExpiredRooms(env.DB, nowIso()).then((deleted) => {
         if (deleted > 0) console.log(`Purged ${deleted} expired room(s)`);
       })
     );

@@ -21,7 +21,7 @@ Blind Rank rooms can **keep playing**: after the reveal the host picks the next 
 ## Tech stack
 
 - **App** — Expo SDK 54 (React Native 0.81, React 19), Expo Router (typed routes), `react-native-gesture-handler` + `react-native-reanimated` for swipe/drag. Targets iOS, Android, and web. Local state per screen plus AsyncStorage; no global store. StyleSheet + tokens in `lib/theme.ts`.
-- **API** — Hono on Cloudflare Workers (TypeScript), deployed with Wrangler. An hourly cron deletes expired rooms.
+- **API** — Hono on Cloudflare Workers (TypeScript), deployed with Wrangler. A weekly cron deletes expired rooms.
 - **Database** — Cloudflare D1 (SQLite), queried directly with prepared statements. Schema changes are numbered migrations in `apps/api/migrations/`.
 - **Shared** — `@tot/shared` workspace package (TypeScript source, no build step): modes and rules, tiers, bracket shape.
 - **Monorepo** — npm workspaces: `apps/*`, `packages/*`.
@@ -40,7 +40,7 @@ open ──start──▶ voting ──everyone done / host reveals──▶ rev
 - `voting`: items are locked. Joining is still allowed. Everyone sees the items, except in blind rank and bracket rooms, where the server deals them out (`/next-item`, `/bracket`) so nobody can peek ahead.
 - `revealed`: results are visible to anyone with the code. Can't be closed (that would hide the results).
 - `closed`: the host ended the room early; nothing is shown.
-- Rooms **expire 48 hours after creation** (`expires_at`, an ISO string). Expired rooms 404 everywhere and are deleted by the hourly cron (`apps/api/src/lib/cleanup.ts`).
+- Rooms **expire 48 hours after creation** (`expires_at`, an ISO string). Expired rooms 404 everywhere and are deleted by the weekly cron (`apps/api/src/lib/cleanup.ts`).
 
 ## Identity and privacy
 

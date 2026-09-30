@@ -53,7 +53,7 @@ this-or-that/
 │   │   └── lib/                # api client, modes, storage, polling, theme
 │   └── api/                    # Hono + Cloudflare Workers
 │       ├── src/
-│       │   ├── index.ts        # app entry, routes, hourly cleanup cron
+│       │   ├── index.ts        # app entry, routes, weekly cleanup cron
 │       │   ├── routes/         # rooms, results, one submission route per mode
 │       │   ├── modes/          # one handler per game mode
 │       │   ├── db/             # query helpers + schema reference
@@ -123,7 +123,7 @@ npm run deploy:web      # web frontend only
 `deploy:api` runs the test suite, applies any pending D1 migrations to the remote
 database, then deploys the Worker — in that order, so the schema is always ahead of
 the code that depends on it. Use `npm run deploy:worker -w tot-api` to push code
-without the test/migration steps. The Worker also runs an hourly cron that deletes
+without the test/migration steps. The Worker also runs a weekly cron that deletes
 rooms past their 48-hour expiry.
 
 `deploy:web` runs `expo export --platform web` and uploads `dist/` as a static-assets

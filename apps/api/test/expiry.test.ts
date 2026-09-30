@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:workers";
-import { purgeExpiredRooms } from "../src/lib/cleanup";
+import { PURGE_BATCH_SIZE, purgeAllExpiredRooms, purgeExpiredRooms } from "../src/lib/cleanup";
 import {
   api,
   createRoom,
@@ -124,5 +124,26 @@ describe("purgeExpiredRooms", () => {
     expect(after.rooms).toBe(1);
     expect(after.participants).toBe(2);
     expect((await getRoom(code)).status).toBe(200);
+  });
+
+  it("clears a backlog bigger than one batch in a single run", async () => {
+    const count = PURGE_BATCH_SIZE + 50;
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const insert = env.DB.prepare(
+      "INSERT INTO rooms (id, code, topic, creator_voter_id, expires_at) VALUES (?, ?, 'Old', 'nobody', ?)"
+    );
+    await env.DB.batch(
+      Array.from({ length: count }, (_, i) =>
+        insert.bind(`backlog-${i}`, `BL${String(i).padStart(4, "0")}`, past)
+      )
+    );
+
+    const deleted = await purgeAllExpiredRooms(env.DB, new Date().toISOString());
+    expect(deleted).toBeGreaterThanOrEqual(count);
+
+    const left = await env.DB.prepare(
+      "SELECT COUNT(*) as n FROM rooms WHERE id LIKE 'backlog-%'"
+    ).first<{ n: number }>();
+    expect(left!.n).toBe(0);
   });
 });
