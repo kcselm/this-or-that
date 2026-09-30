@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a third game mode to This or That, called **Bracket**, alongside Swipe Vote and Blind Rank. The host picks a topic and adds 4–16 items. The server seeds a single-elimination bracket by shuffling the items and assigning random byes to fill out to the next power of two. Each round, all participants vote head-to-head on every matchup in that round; majority wins, ties resolve by server-side coin flip. When the round closes, every player sees the updated bracket tree on a "round reveal" screen and individually taps Continue to start the next round of voting. After the final, the reveal screen shows the full bracket tree with the winner, per-matchup vote breakdowns, and "split decision" labels on any tiebroken matchups.
+Add a third game mode to This or That, called **Bracket**, alongside Swipe Vote and Blind Rank. The host picks a topic and adds 4–16 items. The server seeds a single-elimination bracket by shuffling the items; every round plays as many matchups as possible and sits out at most one item ("rolling byes", see Bracket seeding). Each round, all participants vote head-to-head on every matchup in that round; majority wins, ties resolve by server-side coin flip. When the round closes, every player sees the updated bracket tree on a "round reveal" screen and individually taps Continue to start the next round of voting. After the final, the reveal screen shows the full bracket tree with the winner, per-matchup vote breakdowns, and "split decision" labels on any tiebroken matchups.
 
 ## Goals
 
@@ -143,15 +143,14 @@ The `votes` and `rankings` tables are untouched. Bracket rooms use `matchups` an
 
 ### Bracket seeding (executed on `/start`)
 
-Let `N = item count` and `P = next_power_of_2(N)`. `byes = P - N`. Round 1 has `P/2` matchup rows total: `N - P/2` real matchups (both items set) and `byes` bye matchups (only `item_a_id` set, `is_bye=1`, `winner_item_id=item_a_id`, `decided_at=now`).
+**Rolling byes** (revised 2026-09-01; the original design front-loaded all byes into Round 1 to reach a power of two, which for 9 items meant one matchup and seven byes). Every round with `n` competitors plays `floor(n/2)` real matchups and, when `n` is odd, one bye matchup (only `item_a_id` set, `is_bye=1`, `winner_item_id=item_a_id`, `decided_at=now`). The bye takes the **last** slot in odd-numbered rounds and the **first** slot in even-numbered rounds, so no item sits out twice in a row and the whole bracket shape follows from the item count alone (the client uses this to draw empty slots for rounds that don't exist yet). `total_rounds` is unchanged: `ceil(log2(N))`.
 
-Algorithm:
+Algorithm for Round 1 (`apps/api/src/lib/bracket-shape.ts`, mirrored in `apps/mobile/lib/bracket-shape.ts`):
 1. Shuffle the items. Call the shuffled list `S` (length N).
-2. Compute `P` and `byes` as above.
-3. Pair the first `2*(N - P/2)` items into real matchups: `(S[0], S[1])`, `(S[2], S[3])`, …, assigned to slots `0..N-P/2-1`.
-4. Assign each remaining item in `S` to a bye matchup at slots `N-P/2 .. P/2-1`.
+2. Pair adjacent items into real matchups: `(S[0], S[1])`, `(S[2], S[3])`, …, at slots `0..floor(N/2)-1`.
+3. If `N` is odd, `S[N-1]` gets the bye at slot `floor(N/2)`.
 
-This places bye-advanced items in adjacent bracket positions, so they may face each other in Round 2 (standard bracket math, acceptable for our purposes).
+Later rounds apply the same plan to the previous round's winners in slot order, with the bye moved to slot 0 in even-numbered rounds (the pairs then start at slot 1).
 
 The whole insert (presentation order + all R1 matchup rows + status transition to 'voting') runs in a single `db.batch()` for atomicity, mirroring the pattern in `/start` for rank rooms.
 
@@ -165,7 +164,7 @@ After inserting a `matchup_votes` row, the server:
    - For each undecided real matchup in the round, tally votes. Majority pick wins; on exact tie, server picks uniformly at random and sets `decided_by_tiebreak=1`.
    - Sets `winner_item_id` and `decided_at` on each.
    - If this was the final round (`round == total_rounds`), updates the room to `status='revealed'`.
-   - Otherwise, creates the next round's matchup rows by pairing winners: round `R+1` slot `S` takes `winner_item_id` from round `R` slots `S*2` and `S*2+1`. New rows have `winner_item_id=null`, `decided_at=null`.
+   - Otherwise, creates the next round's matchup rows from the round's winners in slot order using the rolling-bye plan above (adjacent winners pair up; an odd winner count leaves one bye). New real rows have `winner_item_id=null`, `decided_at=null`. A lone winner means the round was the final.
 
 `total_rounds = log2(P)`.
 

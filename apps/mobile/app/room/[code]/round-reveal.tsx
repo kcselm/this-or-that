@@ -10,7 +10,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInUp } from "react-native-reanimated";
-import BracketTree from "../../../components/BracketTree";
+import BracketView from "../../../components/BracketView";
 import { getBracket, ApiError, type BracketRound } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
@@ -96,7 +96,7 @@ export default function RoundRevealScreen() {
       )}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <BracketTree rounds={rounds} expandableBreakdowns={false} />
+        <BracketView rounds={rounds} highlightRound={completed} expandableBreakdowns={false} />
       </ScrollView>
 
       <Pressable

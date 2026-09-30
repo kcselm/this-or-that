@@ -1,10 +1,12 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function ModePickerScreen() {
   const router = useRouter();
+  // Set when hosting from a saved list; the create screen loads it.
+  const { listId } = useLocalSearchParams<{ listId?: string }>();
 
   return (
     <ScrollView
@@ -16,7 +18,7 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(100).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "vote" } })}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "vote", ...(listId ? { listId } : {}) } })}
         >
           <Text style={styles.cardEmoji}>♥</Text>
           <Text style={styles.cardTitle}>Swipe Vote</Text>
@@ -29,7 +31,7 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(200).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardRank, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "rank" } })}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "rank", ...(listId ? { listId } : {}) } })}
         >
           <Text style={styles.cardEmoji}>◎</Text>
           <Text style={styles.cardTitle}>Blind Rank</Text>
@@ -42,7 +44,7 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(300).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardBracket, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "bracket" } })}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "bracket", ...(listId ? { listId } : {}) } })}
         >
           <Text style={styles.cardEmoji}>⚔</Text>
           <Text style={styles.cardTitle}>Bracket</Text>
@@ -55,7 +57,7 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(400).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardMlt, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "mlt" } })}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "mlt", ...(listId ? { listId } : {}) } })}
         >
           <Text style={styles.cardEmoji}>★</Text>
           <Text style={styles.cardTitle}>Most Likely To</Text>
@@ -69,7 +71,7 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(500).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardTier, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "tier" } })}
+          onPress={() => router.push({ pathname: "/create", params: { mode: "tier", ...(listId ? { listId } : {}) } })}
         >
           <Text style={styles.cardEmoji}>▦</Text>
           <Text style={styles.cardTitle}>Tier List</Text>

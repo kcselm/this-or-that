@@ -8,6 +8,7 @@ import {
   Alert,
   Share,
   FlatList,
+  ScrollView,
   Switch,
   KeyboardAvoidingView,
   Platform,
@@ -15,9 +16,11 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
-import { getVoterId } from "../../lib/storage";
+import { getVoterId, getSavedLists, createSavedList } from "../../lib/storage";
 import { saveActiveRoom } from "../../lib/storage";
+import { planImport, describeSkipped, type SavedList } from "../../lib/saved-lists";
 import {
+  addItems,
   startVoting,
   closeRoom,
   getParticipants,
@@ -35,7 +38,12 @@ import { showAlert } from "../../lib/alert";
 
 export default function ShareScreen() {
   const router = useRouter();
-  const { code, name, mode: modeParam } = useLocalSearchParams<{ code: string; name: string; mode?: string }>();
+  const { code, name, mode: modeParam, listId } = useLocalSearchParams<{
+    code: string;
+    name: string;
+    mode?: string;
+    listId?: string;
+  }>();
   const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier">(
     modeParam === "rank" ? "rank" : modeParam === "bracket" ? "bracket" : modeParam === "mlt" ? "mlt" : modeParam === "tier" ? "tier" : "vote"
   );
@@ -47,6 +55,9 @@ export default function ShareScreen() {
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [topic, setTopic] = useState("");
   const inputRef = useRef<TextInput>(null);
+  const [savedLists, setSavedLists] = useState<SavedList[]>([]);
+  const [importing, setImporting] = useState(false);
+  const autoImported = useRef(false);
 
   usePolling(async () => {
     try {
@@ -68,6 +79,63 @@ export default function ShareScreen() {
       saveActiveRoom({ code, topic, name, isCreator: true });
     }
   }, [code, topic, name]);
+
+  const importList = async (list: SavedList) => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const voterId = await getVoterId();
+      // Read the room fresh so the plan sees items added since the last poll.
+      const room = await getRoom(code, voterId);
+      const roomMode = room.mode;
+      const limit =
+        roomMode === "rank" ? 5 :
+        roomMode === "bracket" ? 16 :
+        roomMode === "tier" ? 12 : 15;
+      const plan = planImport(
+        list.items,
+        room.items.map((i) => i.title),
+        limit,
+        roomMode === "mlt" ? 80 : undefined
+      );
+      if (plan.toAdd.length > 0) {
+        await addItems(code, { items: plan.toAdd, creatorVoterId: voterId });
+        setItems((await getRoom(code, voterId)).items);
+      }
+      const skipped = describeSkipped(plan.duplicates, plan.overflow, limit);
+      if (plan.toAdd.length === 0) {
+        showAlert("Nothing added", skipped ?? "That list is empty.");
+      } else if (skipped) {
+        showAlert(`Added ${plan.toAdd.length} from "${list.name.trim() || "Untitled list"}"`, skipped);
+      }
+    } catch (e: any) {
+      showAlert("Error", e.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Load saved lists for the picker, and auto-load the one the host chose
+  // when they started from My Lists.
+  useEffect(() => {
+    getSavedLists().then((lists) => {
+      setSavedLists(lists);
+      if (listId && !autoImported.current) {
+        autoImported.current = true;
+        const list = lists.find((l) => l.id === listId);
+        if (list) importList(list);
+      }
+    });
+  }, []);
+
+  const handleSaveAsList = async () => {
+    const list = await createSavedList(
+      topic,
+      items.map((i) => i.title)
+    );
+    setSavedLists((prev) => [list, ...prev]);
+    showAlert("Saved", `"${topic || "Untitled list"}" is in My Lists for next time.`);
+  };
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(code);
@@ -273,8 +341,19 @@ export default function ShareScreen() {
       <View style={styles.itemsSection}>
         <View style={styles.itemsHeader}>
           <Text style={styles.sectionHeading}>OPTIONS</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>{items.length}/{maxItems}</Text>
+          <View style={styles.itemsHeaderRight}>
+            {items.length > 0 && (
+              <Pressable onPress={handleSaveAsList} hitSlop={8}>
+                {({ pressed }) => (
+                  <Text style={[styles.saveListText, pressed && { opacity: 0.6 }]}>
+                    Save to My Lists
+                  </Text>
+                )}
+              </Pressable>
+            )}
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{items.length}/{maxItems}</Text>
+            </View>
           </View>
         </View>
 
@@ -305,6 +384,34 @@ export default function ShareScreen() {
             <Text style={styles.addButtonText}>+</Text>
           </Pressable>
         </View>
+
+        {savedLists.length > 0 && items.length < maxItems && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.listChips}
+            contentContainerStyle={styles.listChipsContent}
+          >
+            <Text style={styles.listChipsLabel}>LOAD LIST</Text>
+            {savedLists
+              .filter((l) => l.items.length > 0)
+              .map((l) => (
+                <Pressable
+                  key={l.id}
+                  disabled={importing}
+                  onPress={() => importList(l)}
+                  style={({ pressed }) => [
+                    styles.listChip,
+                    (pressed || importing) && styles.listChipPressed,
+                  ]}
+                >
+                  <Text style={styles.listChipText} numberOfLines={1}>
+                    {l.name.trim() || "Untitled list"} · {l.items.length}
+                  </Text>
+                </Pressable>
+              ))}
+          </ScrollView>
+        )}
 
         <FlatList
           data={items}
@@ -467,6 +574,43 @@ const styles = StyleSheet.create({
   sectionHeading: {
     ...typography.tiny,
     color: colors.mist,
+  },
+  itemsHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  saveListText: {
+    ...typography.caption,
+    color: colors.teal,
+    fontWeight: "700",
+  },
+  listChips: {
+    flexGrow: 0,
+    marginBottom: spacing.sm,
+  },
+  listChipsContent: {
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  listChipsLabel: {
+    ...typography.tiny,
+    color: colors.mist,
+  },
+  listChip: {
+    backgroundColor: colors.tealLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    maxWidth: 200,
+  },
+  listChipPressed: {
+    opacity: 0.6,
+  },
+  listChipText: {
+    ...typography.caption,
+    color: colors.tealDark,
+    fontWeight: "700",
   },
   countBadge: {
     backgroundColor: colors.coralLight,

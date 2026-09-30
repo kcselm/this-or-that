@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,16 +11,17 @@ import {
 } from "react-native";
 import { showAlert } from "../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { getVoterId } from "../../lib/storage";
+import { getSavedList, getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
-  const { mode: modeParam, previousRoomCode, name: nameParam } = useLocalSearchParams<{
+  const { mode: modeParam, previousRoomCode, name: nameParam, listId } = useLocalSearchParams<{
     mode?: string;
     previousRoomCode?: string;
     name?: string;
+    listId?: string;
   }>();
   const mode: "vote" | "rank" | "bracket" | "mlt" | "tier" =
     modeParam === "rank"
@@ -36,6 +37,14 @@ export default function CreateRoomScreen() {
   const [name, setName] = useState(nameParam ?? "");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Hosting from a saved list: its name is the natural topic.
+  useEffect(() => {
+    if (!listId) return;
+    getSavedList(listId).then((list) => {
+      if (list?.name.trim()) setTopic((current) => current || list.name.trim());
+    });
+  }, [listId]);
 
   const handleCreate = async () => {
     const trimmedTopic = topic.trim();
@@ -55,7 +64,8 @@ export default function CreateRoomScreen() {
         mode,
         ...(previousRoomCode ? { previousRoomCode } : {}),
       });
-      if (mode === "mlt") {
+      // A saved list replaces the MLT prompt library, so go straight to share.
+      if (mode === "mlt" && !listId) {
         router.replace({
           pathname: "/create/mlt-prompts",
           params: { code: room.code, name: trimmedName, mode },
@@ -63,7 +73,7 @@ export default function CreateRoomScreen() {
       } else {
         router.replace({
           pathname: "/create/share",
-          params: { code: room.code, name: trimmedName, mode },
+          params: { code: room.code, name: trimmedName, mode, ...(listId ? { listId } : {}) },
         });
       }
     } catch (e: any) {

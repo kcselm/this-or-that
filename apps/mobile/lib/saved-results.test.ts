@@ -1,0 +1,71 @@
+import { describe, it, expect } from "vitest";
+import {
+  toSavedResult,
+  pruneExpired,
+  upsertResult,
+  expiresAt,
+  headline,
+  type RevealedResults,
+} from "./saved-results";
+
+const vote: RevealedResults = {
+  revealed: true,
+  topic: "Dinner",
+  totalVoters: 3,
+  results: [
+    { itemId: "a", title: "Tacos", yesCount: 3, noCount: 0, yesPercentage: 100 },
+    { itemId: "b", title: "Sushi", yesCount: 1, noCount: 2, yesPercentage: 33 },
+  ],
+};
+
+const bracket: RevealedResults = {
+  revealed: true,
+  mode: "bracket",
+  topic: "Movies",
+  totalRounds: 2,
+  winner: { id: "x", title: "Alien" },
+  rounds: [],
+};
+
+const now = new Date("2026-09-29T12:00:00Z");
+const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+
+describe("toSavedResult", () => {
+  it("captures topic and mode, defaulting to vote", () => {
+    const saved = toSavedResult("abc123", vote, now);
+    expect(saved).toMatchObject({ code: "ABC123", topic: "Dinner", mode: "vote" });
+    expect(toSavedResult("X", bracket, now).mode).toBe("bracket");
+  });
+});
+
+describe("pruneExpired", () => {
+  it("keeps snapshots inside 30 days and drops older ones", () => {
+    const fresh = toSavedResult("AAA", vote, daysAgo(29));
+    const stale = toSavedResult("BBB", vote, daysAgo(31));
+    expect(pruneExpired([fresh, stale], now).map((e) => e.code)).toEqual(["AAA"]);
+  });
+});
+
+describe("upsertResult", () => {
+  it("replaces an existing snapshot for the same code", () => {
+    const first = toSavedResult("AAA", vote, daysAgo(10));
+    const other = toSavedResult("BBB", bracket, daysAgo(5));
+    const again = toSavedResult("AAA", vote, now);
+    const res = upsertResult([first, other], again);
+    expect(res).toHaveLength(2);
+    expect(res.find((e) => e.code === "AAA")?.savedAt).toBe(now.toISOString());
+  });
+});
+
+describe("expiresAt", () => {
+  it("is 30 days after saving", () => {
+    expect(expiresAt(toSavedResult("A", vote, now)).toISOString()).toBe("2026-10-29T12:00:00.000Z");
+  });
+});
+
+describe("headline", () => {
+  it("names the top vote pick and the bracket winner", () => {
+    expect(headline(vote)).toBe("Tacos");
+    expect(headline(bracket)).toBe("Alien");
+  });
+});

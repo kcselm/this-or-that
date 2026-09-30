@@ -1,0 +1,12 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "tot-web",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    // Expo exports dynamic routes as literal "[code]" paths, so deep links like
+    // /room/ABC123/lobby never match a file. Fall back to index.html and let
+    // expo-router resolve the path client-side.
+    "not_found_handling": "single-page-application"
+  }
+}

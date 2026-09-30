@@ -187,6 +187,22 @@ export default function HomeScreen() {
           <Text style={styles.joinButtonText}>Join a Room</Text>
           <Text style={styles.joinButtonArrow}>→</Text>
         </Pressable>
+
+        <View style={styles.secondaryLinks}>
+          <Pressable
+            style={({ pressed }) => [styles.secondaryLink, pressed && { opacity: 0.6 }]}
+            onPress={() => router.push("/lists")}
+          >
+            <Text style={styles.secondaryLinkText}>My Lists</Text>
+          </Pressable>
+          <Text style={styles.secondaryLinkDivider}>·</Text>
+          <Pressable
+            style={({ pressed }) => [styles.secondaryLink, pressed && { opacity: 0.6 }]}
+            onPress={() => router.push("/history")}
+          >
+            <Text style={styles.secondaryLinkText}>Past Results</Text>
+          </Pressable>
+        </View>
       </Animated.View>
     </View>
   )
@@ -351,5 +367,23 @@ const styles = StyleSheet.create({
     color: colors.mist,
     position: "absolute",
     right: 20,
+  },
+  secondaryLinks: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  secondaryLink: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  secondaryLinkText: {
+    ...typography.bodyBold,
+    color: colors.slate,
+  },
+  secondaryLinkDivider: {
+    ...typography.bodyBold,
+    color: colors.mist,
   },
 })
