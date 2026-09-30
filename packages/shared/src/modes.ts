@@ -25,6 +25,8 @@ export type ModeRules = {
   minPlayersToStart: number;
   /** Participants needed before results can reveal automatically. */
   minPlayersToReveal: number;
+  /** Whether a revealed room can continue into another round with a new host. */
+  series: boolean;
 };
 
 export const MODE_RULES: Record<Mode, ModeRules> = {
@@ -37,6 +39,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     suggestions: true,
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
+    series: false,
   },
   rank: {
     label: "blind rank",
@@ -47,6 +50,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     suggestions: false,
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
+    series: true,
   },
   bracket: {
     label: "bracket",
@@ -57,6 +61,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     suggestions: false,
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
+    series: false,
   },
   mlt: {
     label: "Most Likely To",
@@ -64,9 +69,10 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     minItems: 3,
     maxItems: 15,
     maxItemLength: 80,
-    suggestions: true,
+    suggestions: false,
     minPlayersToStart: 3,
     minPlayersToReveal: 3,
+    series: false,
   },
   tier: {
     label: "tier list",
@@ -77,6 +83,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     suggestions: false,
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
+    series: false,
   },
 };
 
@@ -89,10 +96,16 @@ export function canStartWithItems(mode: Mode, itemCount: number): boolean {
   return itemCount >= minItems && itemCount <= maxItems;
 }
 
+/** "Blind rank rooms", for starting a sentence about a mode. */
+export function roomsLabel(mode: Mode): string {
+  const { label } = MODE_RULES[mode];
+  return `${label[0].toUpperCase()}${label.slice(1)} rooms`;
+}
+
 /** The message shown when the item count doesn't allow starting. */
 export function startItemsMessage(mode: Mode): string {
-  const { label, itemNoun, minItems, maxItems } = MODE_RULES[mode];
-  const room = `${label[0].toUpperCase()}${label.slice(1)} rooms`;
+  const { itemNoun, minItems, maxItems } = MODE_RULES[mode];
+  const room = roomsLabel(mode);
   return minItems === maxItems
     ? `${room} need exactly ${minItems} ${itemNoun} to start`
     : `${room} need between ${minItems} and ${maxItems} ${itemNoun} to start`;

@@ -39,9 +39,15 @@ export async function maybeReveal(db: D1Database, room: Room): Promise<boolean> 
   const enoughPlayers = voters.length >= MODE_RULES[room.mode].minPlayersToReveal;
   if (!enoughPlayers || voters.some((v) => !v.completed)) return false;
 
-  await db
+  const flipped = await db
     .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
     .bind(room.id)
     .run();
-  return true;
+  if ((flipped.meta.changes ?? 0) > 0) return true;
+  // Someone else's submission may have revealed it first; a close means it isn't.
+  const now = await db
+    .prepare("SELECT status FROM rooms WHERE id = ?")
+    .bind(room.id)
+    .first<{ status: string }>();
+  return now?.status === "revealed";
 }

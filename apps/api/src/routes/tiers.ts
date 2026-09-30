@@ -1,7 +1,7 @@
 import { isTier } from "@tot/shared";
 import { createRouter } from "../types";
 import { getRoomByCode, getItemsByRoomId } from "../db/queries";
-import { notFound, invalidStatus, validationError } from "../lib/validation";
+import { notFound, invalidStatus, validationError, isUniqueViolation } from "../lib/validation";
 import { isParticipant, isValidName } from "../lib/participants";
 import { maybeReveal, wrongModeError } from "../modes";
 
@@ -71,7 +71,7 @@ tiers.post("/:code/tiers", async (c) => {
   try {
     await db.batch(statements);
   } catch (e: unknown) {
-    if (String((e as Error)?.message ?? e).includes("UNIQUE")) {
+    if (isUniqueViolation(e)) {
       return validationError("You have already locked in your board");
     }
     throw e;

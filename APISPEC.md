@@ -16,7 +16,7 @@ All requests and responses are JSON. Timestamps are ISO 8601 UTC.
 | `vote`    | 2–15         | 100          | 1                | 2                      | yes         |
 | `rank`    | exactly 5    | 100          | 1                | 2                      | no          |
 | `bracket` | 4–16         | 100          | 1                | 2                      | no          |
-| `mlt`     | 3–15 prompts | 80           | 3                | 3                      | yes         |
+| `mlt`     | 3–15 prompts | 80           | 3                | 3                      | no          |
 | `tier`    | 3–12         | 100          | 1                | 2                      | no          |
 
 ## Rooms
@@ -39,7 +39,7 @@ Create a room. The creator is joined as its first participant.
 - `topic`: 1–100 characters after trimming. `creatorName`: 1–30 after trimming.
 - `mode`: optional, defaults to `vote`.
 - `allowSuggestions`: optional; ignored for modes that don't allow suggestions.
-- `previousRoomCode`: optional, blind rank only. Chains this room onto a revealed rank room as its next round. Only the next host that room's host picked may do this.
+- `previousRoomCode`: optional, for modes with series (blind rank). Chains this room onto a revealed room of the same mode as its next round. Only the next host that room's host picked may do this.
 
 **201**
 

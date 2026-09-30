@@ -1,7 +1,7 @@
 import { RANK_SLOTS } from "@tot/shared";
 import { createRouter } from "../types";
 import { getRoomByCode, getNextRankItem, getRankingsByRoomAndVoter } from "../db/queries";
-import { notFound, invalidStatus, validationError } from "../lib/validation";
+import { notFound, invalidStatus, validationError, isUniqueViolation } from "../lib/validation";
 import { isParticipant, isValidName } from "../lib/participants";
 import { maybeReveal, wrongModeError } from "../modes";
 
@@ -83,7 +83,7 @@ rankings.post("/:code/rankings", async (c) => {
       .bind(crypto.randomUUID(), room.id, itemId, voterId, voterName.trim(), rank)
       .run();
   } catch (e: unknown) {
-    if (String((e as Error)?.message ?? e).includes("UNIQUE")) {
+    if (isUniqueViolation(e)) {
       return validationError(
         "You have already placed this item or filled this slot — placements are locked"
       );

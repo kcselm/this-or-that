@@ -1,4 +1,11 @@
-import { MODE_RULES, canStartWithItems, isMode, startItemsMessage } from "@tot/shared";
+import {
+  MODES,
+  MODE_RULES,
+  canStartWithItems,
+  isMode,
+  roomsLabel,
+  startItemsMessage,
+} from "@tot/shared";
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
 import {
@@ -36,26 +43,26 @@ rooms.post("/", async (c) => {
   }
   const mode = body.mode ?? "vote";
   if (!isMode(mode)) {
-    return validationError("mode must be 'vote', 'rank', 'bracket', 'mlt', or 'tier'");
+    return validationError(`mode must be one of: ${MODES.join(", ")}`);
   }
 
   const db = c.env.DB;
   const id = crypto.randomUUID();
 
   // Successor-room creation: only the designated next host of a revealed
-  // rank room may chain a new round onto it.
+  // series-capable room may chain a new round onto it, in the same mode.
   let prevRoom: Awaited<ReturnType<typeof getRoomByCode>> = null;
   if (body.previousRoomCode !== undefined) {
     if (typeof body.previousRoomCode !== "string") {
       return validationError("previousRoomCode must be a string");
     }
-    if (mode !== "rank") {
-      return validationError("Only blind rank rooms can continue a series");
+    if (!MODE_RULES[mode].series) {
+      return validationError(`${roomsLabel(mode)} can't continue a series`);
     }
     prevRoom = await getRoomByCode(db, body.previousRoomCode.toUpperCase());
     if (!prevRoom) return notFound();
-    if (prevRoom.mode !== "rank") {
-      return invalidStatus("Only blind rank rooms can continue a series");
+    if (prevRoom.mode !== mode) {
+      return invalidStatus("The next round must use the same game mode");
     }
     if (prevRoom.status !== "revealed") {
       return invalidStatus("The previous round hasn't been revealed yet");
@@ -276,10 +283,10 @@ rooms.post("/:code/start", async (c) => {
   if (!canStartWithItems(room.mode, itemCount)) {
     return validationError(startItemsMessage(room.mode));
   }
-  const { label, minPlayersToStart } = MODE_RULES[room.mode];
+  const { minPlayersToStart } = MODE_RULES[room.mode];
   if (minPlayersToStart > 1 && (await countParticipants(db, room.id)) < minPlayersToStart) {
     return validationError(
-      `${label[0].toUpperCase()}${label.slice(1)} rooms need at least ${minPlayersToStart} players to start`
+      `${roomsLabel(room.mode)} need at least ${minPlayersToStart} players to start`
     );
   }
 
@@ -366,23 +373,15 @@ rooms.post("/:code/join", async (c) => {
     return invalidStatus("Voting has already ended for this room");
   }
 
-  // Upsert: insert or update name if already joined
-  const existing = await db
-    .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
-    .bind(room.id, voterId)
-    .first();
-
-  if (existing) {
-    await db
-      .prepare("UPDATE participants SET voter_name = ? WHERE room_id = ? AND voter_id = ?")
-      .bind(voterName.trim(), room.id, voterId)
-      .run();
-  } else {
-    await db
-      .prepare("INSERT INTO participants (id, room_id, voter_id, voter_name) VALUES (?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), room.id, voterId, voterName.trim())
-      .run();
-  }
+  // Atomic upsert: rejoining renames you. A SELECT-then-INSERT let a double
+  // tap race into UNIQUE(room_id, voter_id) and 500.
+  await db
+    .prepare(
+      `INSERT INTO participants (id, room_id, voter_id, voter_name) VALUES (?, ?, ?, ?)
+       ON CONFLICT(room_id, voter_id) DO UPDATE SET voter_name = excluded.voter_name`
+    )
+    .bind(crypto.randomUUID(), room.id, voterId, voterName.trim())
+    .run();
 
   return Response.json({ success: true });
 });
@@ -468,7 +467,14 @@ rooms.post("/:code/close", async (c) => {
     return invalidStatus("Results are already revealed — closing would hide them");
   }
 
-  await db.prepare("UPDATE rooms SET status = 'closed' WHERE id = ?").bind(room.id).run();
+  // Conditional: a room revealed by a last-moment submission must stay revealed.
+  const closed = await db
+    .prepare("UPDATE rooms SET status = 'closed' WHERE id = ? AND status IN ('open', 'voting')")
+    .bind(room.id)
+    .run();
+  if ((closed.meta.changes ?? 0) === 0) {
+    return invalidStatus("Results are already revealed — closing would hide them");
+  }
 
   return Response.json({ success: true, status: "closed" });
 });
@@ -490,8 +496,8 @@ rooms.post("/:code/next-host", async (c) => {
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
   if (room.creator_voter_id !== creatorVoterId) return notCreator();
-  if (room.mode !== "rank") {
-    return invalidStatus("Keep playing is only available in blind rank rooms");
+  if (!MODE_RULES[room.mode].series) {
+    return invalidStatus(`Keep playing isn't available in ${MODE_RULES[room.mode].label} rooms`);
   }
   if (room.status !== "revealed") {
     return invalidStatus("The next host can only be picked after results are revealed");

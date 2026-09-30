@@ -15,7 +15,7 @@ import { showAlert } from "./alert";
 type NextHost = { participantId: string; name: string };
 
 /**
- * Keep-playing for revealed blind rank rooms: the host picks who hosts the
+ * Keep-playing for revealed series rooms (blind rank): the host picks who hosts the
  * next round, that player creates it, and everyone else is moved into it
  * automatically. Polls only while `active`; `null` means "not known yet".
  */

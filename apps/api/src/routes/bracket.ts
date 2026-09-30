@@ -9,7 +9,7 @@ import {
   nowIso,
   type Matchup,
 } from "../db/queries";
-import { notFound, invalidStatus, validationError } from "../lib/validation";
+import { notFound, invalidStatus, validationError, isUniqueViolation } from "../lib/validation";
 import { countParticipants, isParticipant, isValidName } from "../lib/participants";
 import { wrongModeError } from "../modes";
 import { bracketRounds } from "../modes/bracket";
@@ -119,7 +119,7 @@ bracket.post("/:code/matchup-votes", async (c) => {
       .bind(crypto.randomUUID(), room.id, matchupId, voterId, voterName.trim(), pickedItemId)
       .run();
   } catch (e: unknown) {
-    if (String((e as Error)?.message ?? e).includes("UNIQUE")) {
+    if (isUniqueViolation(e)) {
       return validationError("You have already voted on this matchup");
     }
     throw e;
@@ -267,7 +267,7 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
       // Concurrent advance race: another caller already created the next
       // round (UNIQUE(room_id, round, slot)) or wrote the same winners.
       // Swallow the constraint violation — the round is consistent either way.
-      if (!String((e as Error)?.message ?? e).includes("UNIQUE")) throw e;
+      if (!isUniqueViolation(e)) throw e;
     }
   }
 }

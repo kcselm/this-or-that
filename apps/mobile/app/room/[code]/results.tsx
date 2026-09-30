@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MODE_RULES } from "@tot/shared";
 import { getResults, type RevealedResults } from "../../../lib/api";
 import { getVoterId, clearActiveRoom, getSavedResult, saveResult } from "../../../lib/storage";
 import { useNextRound } from "../../../lib/useNextRound";
@@ -28,12 +29,12 @@ export default function ResultsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Only a live blind rank room can continue into another round. null while
-  // we don't know the mode yet.
+  // Only a live room whose mode supports series can continue into another
+  // round. null while we don't know the mode yet.
   const nextRound = useNextRound(
     code,
     name,
-    fromHistory ? false : data ? data.mode === "rank" : null
+    fromHistory ? false : data ? MODE_RULES[data.mode].series : null
   );
 
   const loadResults = async () => {
@@ -54,12 +55,12 @@ export default function ResultsScreen() {
       } else {
         // Keep a local copy — the room is deleted from the server after 48h.
         saveResult(code, res).catch(() => {});
-        // Rank rooms may continue into another round — keep the rejoin
+        // Series rooms may continue into another round — keep the rejoin
         // banner alive until the player actually leaves for home. Other
         // modes forget the room only once its results are actually shown —
         // clearing on mount destroyed the rejoin banner for live rooms
         // whenever this screen was reached early.
-        if (res.mode !== "rank") clearActiveRoom();
+        if (!MODE_RULES[res.mode].series) clearActiveRoom();
         setData(res);
       }
     } catch (e: any) {

@@ -355,5 +355,17 @@ describe("room setup", () => {
     expect(blankName.status).toBe(400);
   });
 
+  it("renames a player who joins again instead of adding them twice", async () => {
+    const { code } = await createRoom("vote");
+    const [first, second] = await Promise.all([
+      join(code, BOB),
+      join(code, { voterId: BOB.voterId, name: "Bobby" }),
+    ]);
+    expect([first.status, second.status]).toEqual([200, 200]);
+
+    const { participants } = (await getParticipants(code)).body;
+    expect(participants).toHaveLength(2);
+  });
+
   it.todo("a JSON body of null is a 400, not a 500");
 });

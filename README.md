@@ -1,6 +1,6 @@
 # This or That
 
-Group decision-making through Tinder-style swiping. Create a room around a topic, share a 6-character code with friends, and everyone votes — no accounts, no logins. When everyone's done, the results are revealed.
+Group decisions and party games for friends. Create a room around a topic, pick a game mode, share a 6-character code, and everyone plays — no accounts, no logins. When everyone's done, the results are revealed.
 
 Built as an [Expo](https://expo.dev) (React Native) app talking to a [Hono](https://hono.dev) API running on [Cloudflare Workers](https://developers.cloudflare.com/workers/), backed by [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite). Communication is plain REST/JSON — no websockets; the app polls while waiting.
 
