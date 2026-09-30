@@ -5,11 +5,13 @@ import {
   upsertResult,
   expiresAt,
   headline,
+  withMode,
   type RevealedResults,
 } from "./saved-results";
 
 const vote: RevealedResults = {
   revealed: true,
+  mode: "vote",
   topic: "Dinner",
   totalVoters: 3,
   results: [
@@ -67,5 +69,17 @@ describe("headline", () => {
   it("names the top vote pick and the bracket winner", () => {
     expect(headline(vote)).toBe("Tacos");
     expect(headline(bracket)).toBe("Alien");
+  });
+});
+
+describe("withMode", () => {
+  it("marks snapshots saved before results carried a mode as swipe vote", () => {
+    const { mode: _mode, ...legacy } = vote;
+    expect(withMode(legacy)).toEqual(vote);
+    expect(headline(withMode(legacy))).toBe("Tacos");
+  });
+
+  it("leaves current snapshots alone", () => {
+    expect(withMode(bracket)).toBe(bracket);
   });
 });

@@ -1,6 +1,6 @@
-import type { Tier } from "./api";
+import type { Tier } from "@tot/shared";
 
-export const TIERS: Tier[] = ["S", "A", "B", "C", "D"];
+export { TIERS } from "@tot/shared";
 
 // A chip lives in a tier or in the unplaced pool.
 export type TierZone = Tier | "pool";

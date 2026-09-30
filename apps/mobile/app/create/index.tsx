@@ -13,6 +13,8 @@ import { showAlert } from "../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getSavedList, getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
+import { MODE_RULES } from "@tot/shared";
+import { parseMode } from "../../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
@@ -23,16 +25,7 @@ export default function CreateRoomScreen() {
     name?: string;
     listId?: string;
   }>();
-  const mode: "vote" | "rank" | "bracket" | "mlt" | "tier" =
-    modeParam === "rank"
-      ? "rank"
-      : modeParam === "bracket"
-        ? "bracket"
-        : modeParam === "mlt"
-          ? "mlt"
-          : modeParam === "tier"
-            ? "tier"
-            : "vote";
+  const mode = parseMode(modeParam);
   const [topic, setTopic] = useState("");
   const [name, setName] = useState(nameParam ?? "");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
@@ -60,7 +53,7 @@ export default function CreateRoomScreen() {
         topic: trimmedTopic,
         creatorVoterId: voterId,
         creatorName: trimmedName,
-        allowSuggestions: mode === "vote" ? allowSuggestions : false,
+        allowSuggestions: MODE_RULES[mode].suggestions ? allowSuggestions : false,
         mode,
         ...(previousRoomCode ? { previousRoomCode } : {}),
       });

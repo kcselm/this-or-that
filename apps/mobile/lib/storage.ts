@@ -6,6 +6,7 @@ import {
   pruneExpired,
   toSavedResult,
   upsertResult,
+  withMode,
   type RevealedResults,
   type SavedResult,
 } from "./saved-results";
@@ -204,7 +205,7 @@ const SAVED_RESULTS_KEY = "tot_saved_results";
 /** Saved results still inside the retention window, newest first. */
 export async function getSavedResults(): Promise<SavedResult[]> {
   const all = await readLocalArray<SavedResult>(SAVED_RESULTS_KEY);
-  const kept = pruneExpired(all, new Date());
+  const kept = pruneExpired(all, new Date()).map((e) => ({ ...e, data: withMode(e.data) }));
   if (kept.length !== all.length) {
     await mutateLocalArray<SavedResult>(SAVED_RESULTS_KEY, (entries) =>
       pruneExpired(entries, new Date())

@@ -27,6 +27,8 @@ import {
   type RoomItem,
 } from "../../../lib/api";
 import { getVoterId, saveActiveRoom } from "../../../lib/storage";
+import { MODE_RULES } from "@tot/shared";
+import { roomScreen, type Mode } from "../../../lib/modes";
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
@@ -58,6 +60,7 @@ export default function LobbyScreen() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [topic, setTopic] = useState<string | null>(null);
   const [items, setItems] = useState<RoomItem[]>([]);
+  const [mode, setMode] = useState<Mode>("vote");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [currentItem, setCurrentItem] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
@@ -72,6 +75,7 @@ export default function LobbyScreen() {
         saveActiveRoom({ code, topic: room.topic, name });
       }
       setAllowSuggestions(room.allowSuggestions);
+      setMode(room.mode);
       setItems(room.items);
       if (room.roundNumber) setRoundNumber(room.roundNumber);
 
@@ -81,22 +85,10 @@ export default function LobbyScreen() {
           router.replace("/")
         );
         return;
-      } else if (room.status === "voting") {
+      } else if (room.status !== "open") {
         stop();
         router.replace({
-          pathname:
-            room.mode === "rank" ? "/room/[code]/rank" :
-            room.mode === "bracket" ? "/room/[code]/bracket" :
-            room.mode === "mlt" ? "/room/[code]/mlt" :
-            room.mode === "tier" ? "/room/[code]/tier" :
-            "/room/[code]/swipe",
-          params: { code, name },
-        });
-        return;
-      } else if (room.status === "revealed") {
-        stop();
-        router.replace({
-          pathname: "/room/[code]/results",
+          pathname: roomScreen(room.status, room.mode, false) ?? "/",
           params: { code, name },
         });
         return;
@@ -117,7 +109,8 @@ export default function LobbyScreen() {
   const handleAddItem = async () => {
     const trimmed = currentItem.trim();
     if (!trimmed) return;
-    if (items.length >= 15) return showAlert("Limit", "Maximum 15 items");
+    const { maxItems } = MODE_RULES[mode];
+    if (items.length >= maxItems) return showAlert("Limit", `Maximum ${maxItems} items`);
     if (items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())) {
       return showAlert("Duplicate", "That item already exists");
     }

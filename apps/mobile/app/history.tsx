@@ -2,12 +2,8 @@ import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, Pressable, FlatList } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { deleteSavedResult, getSavedResults } from "../lib/storage";
-import {
-  headline,
-  MODE_LABELS,
-  RESULTS_RETENTION_DAYS,
-  type SavedResult,
-} from "../lib/saved-results";
+import { headline, RESULTS_RETENTION_DAYS, type SavedResult } from "../lib/saved-results";
+import { MODE_TITLES } from "../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../lib/theme";
 
 function formatDate(iso: string): string {
@@ -47,7 +43,7 @@ export default function PastResultsScreen() {
               {item.topic}
             </Text>
             <Text style={styles.rowMeta} numberOfLines={1}>
-              {MODE_LABELS[item.mode]} · {formatDate(item.savedAt)}
+              {MODE_TITLES[item.mode]} · {formatDate(item.savedAt)}
               {top ? ` · 🏆 ${top}` : ""}
             </Text>
           </View>

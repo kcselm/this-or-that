@@ -3,31 +3,35 @@
  * deleted from the server 48 hours after creation, so each device keeps its
  * own snapshot of every game it saw revealed. Storage lives in storage.ts.
  */
-import type { ResultsResponse } from "./api";
+import type { RevealedResults, VoteResults } from "./api";
+import type { Mode } from "./modes";
 
-export type RevealedResults = Extract<ResultsResponse, { revealed: true }>;
-export type ResultsMode = "vote" | "rank" | "bracket" | "mlt" | "tier";
+export type { RevealedResults };
 
 export type SavedResult = {
   code: string;
   topic: string;
-  mode: ResultsMode;
+  mode: Mode;
   savedAt: string;
   data: RevealedResults;
 };
 
+/** Swipe-vote results saved before the API started sending `mode`. */
+type LegacyVoteResults = Omit<VoteResults, "mode">;
+
+/** Fill in `mode` on snapshots saved by older versions of the app. */
+export function withMode(data: RevealedResults | LegacyVoteResults): RevealedResults {
+  return "mode" in data ? data : { ...data, mode: "vote" };
+}
+
 export const RESULTS_RETENTION_DAYS = 30;
 const RETENTION_MS = RESULTS_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-
-export function resultsMode(data: RevealedResults): ResultsMode {
-  return "mode" in data ? data.mode : "vote";
-}
 
 export function toSavedResult(code: string, data: RevealedResults, now: Date): SavedResult {
   return {
     code: code.toUpperCase(),
     topic: data.topic,
-    mode: resultsMode(data),
+    mode: data.mode,
     savedAt: now.toISOString(),
     data,
   };
@@ -51,18 +55,11 @@ export function expiresAt(entry: SavedResult): Date {
   return new Date(new Date(entry.savedAt).getTime() + RETENTION_MS);
 }
 
-export const MODE_LABELS: Record<ResultsMode, string> = {
-  vote: "Swipe Vote",
-  rank: "Blind Rank",
-  bracket: "Bracket",
-  mlt: "Most Likely To",
-  tier: "Tier List",
-};
-
 /** Short headline for a history row: the winner, where the mode has one. */
 export function headline(data: RevealedResults): string | null {
-  if (!("mode" in data)) return data.results[0]?.title ?? null;
   switch (data.mode) {
+    case "vote":
+      return data.results[0]?.title ?? null;
     case "bracket":
       return data.winner?.title ?? null;
     case "mlt":

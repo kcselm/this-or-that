@@ -6,6 +6,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated"
 import { colors, spacing, radius, typography, shadows } from "../lib/theme"
 import { getActiveRoom, clearActiveRoom, getVoterId, type ActiveRoom } from "../lib/storage"
 import { getRoom } from "../lib/api"
+import { roomScreen } from "../lib/modes"
 import { showAlert } from "../lib/alert"
 
 export default function HomeScreen() {
@@ -48,27 +49,11 @@ export default function HomeScreen() {
     try {
       const voterId = await getVoterId()
       const data = await getRoom(activeRoom.code, voterId)
+      const screen = roomScreen(data.status, data.mode, !!activeRoom.isCreator)
 
-      if (data.status === "open") {
-        if (activeRoom.isCreator) {
-          router.push({
-            pathname: "/create/share",
-            params: { code: activeRoom.code, name: activeRoom.name },
-          })
-        } else {
-          router.push({
-            pathname: "/room/[code]/lobby",
-            params: { code: activeRoom.code, name: activeRoom.name },
-          })
-        }
-      } else if (data.status === "voting") {
+      if (screen) {
         router.push({
-          pathname:
-            data.mode === "rank" ? "/room/[code]/rank" :
-            data.mode === "bracket" ? "/room/[code]/bracket" :
-            data.mode === "mlt" ? "/room/[code]/mlt" :
-            data.mode === "tier" ? "/room/[code]/tier" :
-            "/room/[code]/swipe",
+          pathname: screen,
           params: {
             code: activeRoom.code,
             name: activeRoom.name,
@@ -76,11 +61,6 @@ export default function HomeScreen() {
             // "Reveal Results" button on the waiting screen.
             isCreator: activeRoom.isCreator ? "true" : "false",
           },
-        })
-      } else if (data.status === "revealed") {
-        router.push({
-          pathname: "/room/[code]/results",
-          params: { code: activeRoom.code, name: activeRoom.name },
         })
       } else {
         // Closed — results are gone; clear the banner instead of routing

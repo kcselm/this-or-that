@@ -13,6 +13,7 @@ import { getStatus, revealResults, getRoom, ApiError, type StatusResponse } from
 import { getVoterId } from "../../../lib/storage";
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
+import { IN_PROGRESS_LABELS, type Mode } from "../../../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 function PulsingRing() {
@@ -51,7 +52,7 @@ export default function WaitingScreen() {
   }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
-  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier" | null>(null);
+  const [mode, setMode] = useState<Mode | null>(null);
   const isCreator = isCreatorParam === "true";
 
   usePolling(async (stop) => {
@@ -151,15 +152,7 @@ export default function WaitingScreen() {
                 <Text style={[styles.statusText, voter.completed ? styles.doneText : styles.pendingText]}>
                   {voter.completed
                     ? "Done"
-                    : mode === "rank"
-                    ? "Ranking..."
-                    : mode === "bracket"
-                    ? "Voting..."
-                    : mode === "mlt"
-                    ? "Voting on prompts..."
-                    : mode === "tier"
-                    ? "Sorting..."
-                    : "Swiping..."}
+                    : IN_PROGRESS_LABELS[mode ?? "vote"]}
                 </Text>
               </View>
             </View>
