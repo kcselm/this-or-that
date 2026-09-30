@@ -1,4 +1,4 @@
-import type { PlannedSlot } from "../lib/bracket-shape";
+import type { Mode, PlannedSlot } from "@tot/shared";
 
 export type Room = {
   id: string;
@@ -7,7 +7,7 @@ export type Room = {
   creator_voter_id: string;
   status: "open" | "voting" | "revealed" | "closed";
   allow_suggestions: number;
-  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
+  mode: Mode;
   created_at: string;
   expires_at: string;
   series_id: string | null;
@@ -220,7 +220,7 @@ export function insertMatchupStatement(
   db: D1Database,
   roomId: string,
   round: number,
-  planned: PlannedSlot,
+  planned: PlannedSlot<string>,
   nowIso: string
 ): D1PreparedStatement {
   if (planned.itemB === null) {

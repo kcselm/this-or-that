@@ -1,8 +1,11 @@
+import { MODE_RULES, canStartWithItems, isMode, startItemsMessage } from "@tot/shared";
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getVotesByRoomAndVoter, getRankingsByRoomAndVoter, getMltVotesByVoter, getTierPlacementsByVoter, getSeriesHostVoterIds, getLatestSeriesRoom, insertMatchupStatement } from "../db/queries";
-import { planRound } from "../lib/bracket-shape";
+import { getRoomByCode, getItemsByRoomId, getItemCount, getSeriesHostVoterIds } from "../db/queries";
 import { notFound, notCreator, invalidStatus, validationError, errorResponse } from "../lib/validation";
+import { countParticipants, isParticipant, isValidName } from "../lib/participants";
+import { nextRoomCodeFor } from "../lib/series";
+import { modeHandler } from "../modes";
 
 export const rooms = createRouter();
 
@@ -11,23 +14,17 @@ rooms.post("/", async (c) => {
   const body = await c.req.json();
   const { topic, creatorVoterId, creatorName } = body;
 
-  if (!topic || typeof topic !== "string" || topic.length < 1 || topic.length > 100) {
+  if (typeof topic !== "string" || topic.trim().length < 1 || topic.trim().length > 100) {
     return validationError("Topic is required and must be 1-100 characters");
   }
   if (!creatorVoterId || typeof creatorVoterId !== "string") {
     return validationError("Creator voter ID is required");
   }
-  if (!creatorName || typeof creatorName !== "string" || creatorName.length < 1 || creatorName.length > 30) {
+  if (!isValidName(creatorName)) {
     return validationError("Creator name is required and must be 1-30 characters");
   }
   const mode = body.mode ?? "vote";
-  if (
-    mode !== "vote" &&
-    mode !== "rank" &&
-    mode !== "bracket" &&
-    mode !== "mlt" &&
-    mode !== "tier"
-  ) {
+  if (!isMode(mode)) {
     return validationError("mode must be 'vote', 'rank', 'bracket', 'mlt', or 'tier'");
   }
 
@@ -76,7 +73,7 @@ rooms.post("/", async (c) => {
     if (!existing) break;
   }
 
-  const allowSuggestions = (mode === "rank" || mode === "bracket" || mode === "tier") ? 0 : (body.allowSuggestions ? 1 : 0);
+  const allowSuggestions = MODE_RULES[mode].suggestions && body.allowSuggestions ? 1 : 0;
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
@@ -132,21 +129,13 @@ rooms.post("/:code/items", async (c) => {
   if (room.status !== "open") return invalidStatus("Items can only be added while the room is open");
 
   const isCreator = creatorVoterId && creatorVoterId === room.creator_voter_id;
+  const rules = MODE_RULES[room.mode];
 
-  if (!isCreator && (room.mode === "rank" || room.mode === "bracket" || room.mode === "tier")) {
-    return invalidStatus(
-      room.mode === "rank"
-        ? "Participants cannot add items in a blind rank room"
-        : room.mode === "bracket"
-        ? "Participants cannot add items in a bracket room"
-        : "Participants cannot add items in a tier list room"
-    );
+  if (!isCreator && !rules.suggestions) {
+    return invalidStatus(`Participants cannot add items in a ${rules.label} room`);
   }
 
-  const maxItems =
-    room.mode === "rank" ? 5 :
-    room.mode === "bracket" ? 16 :
-    room.mode === "tier" ? 12 : 15;
+  const { maxItems, maxItemLength } = rules;
 
   // Determine item list from either `items` (batch) or `item` (single)
   let itemTitles: string[];
@@ -162,11 +151,8 @@ rooms.post("/:code/items", async (c) => {
     return validationError(`Must provide 1-${maxItems} items`);
   }
   for (const item of itemTitles) {
-    if (typeof item !== "string" || item.trim().length < 1 || item.trim().length > 100) {
-      return validationError("Each item must be a string of 1-100 characters");
-    }
-    if (room.mode === "mlt" && item.trim().length > 80) {
-      return validationError("Most Likely To prompts must be 80 characters or fewer");
+    if (typeof item !== "string" || item.trim().length < 1 || item.trim().length > maxItemLength) {
+      return validationError(`Each item must be a string of 1-${maxItemLength} characters`);
     }
   }
 
@@ -175,17 +161,13 @@ rooms.post("/:code/items", async (c) => {
     if (!voterId || typeof voterId !== "string") {
       return validationError("voterId is required for participant item adds");
     }
-    if (!voterName || typeof voterName !== "string") {
+    if (!isValidName(voterName)) {
       return validationError("voterName is required for participant item adds");
     }
     if (!room.allow_suggestions) {
       return invalidStatus("The host has not enabled item suggestions for this room");
     }
-    const participant = await db
-      .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
-      .bind(room.id, voterId)
-      .first();
-    if (!participant) {
+    if (!(await isParticipant(db, room.id, voterId))) {
       return validationError("You must join the room before adding items");
     }
   }
@@ -200,7 +182,7 @@ rooms.post("/:code/items", async (c) => {
     const itemId = crypto.randomUUID();
     const sortOrder = currentCount + i;
     const addedByVoterId = isCreator ? null : voterId;
-    const addedByName = isCreator ? null : voterName;
+    const addedByName = isCreator ? null : voterName.trim();
     await db
       .prepare("INSERT INTO items (id, room_id, title, sort_order, added_by_voter_id, added_by_name) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(itemId, room.id, itemTitles[i].trim(), sortOrder, addedByVoterId, addedByName)
@@ -259,33 +241,14 @@ rooms.post("/:code/start", async (c) => {
   if (room.status !== "open") return invalidStatus("Room has already started voting");
 
   const itemCount = await getItemCount(db, room.id);
-  if (room.mode === "rank") {
-    if (itemCount !== 5) {
-      return validationError("Blind rank rooms must have exactly 5 items to start");
-    }
-  } else if (room.mode === "bracket") {
-    if (itemCount < 4 || itemCount > 16) {
-      return validationError("Bracket rooms need between 4 and 16 items to start");
-    }
-  } else if (room.mode === "mlt") {
-    if (itemCount < 3 || itemCount > 15) {
-      return validationError("Most Likely To rooms need between 3 and 15 prompts to start");
-    }
-    const participantsRow = await db
-      .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
-      .bind(room.id)
-      .first<{ count: number }>();
-    if ((participantsRow?.count ?? 0) < 3) {
-      return validationError("Most Likely To rooms need at least 3 participants to start");
-    }
-  } else if (room.mode === "tier") {
-    if (itemCount < 3 || itemCount > 12) {
-      return validationError("Tier list rooms need between 3 and 12 items to start");
-    }
-  } else {
-    if (itemCount < 2) {
-      return validationError("Room must have at least 2 items to start voting");
-    }
+  if (!canStartWithItems(room.mode, itemCount)) {
+    return validationError(startItemsMessage(room.mode));
+  }
+  const { label, minPlayersToStart } = MODE_RULES[room.mode];
+  if (minPlayersToStart > 1 && (await countParticipants(db, room.id)) < minPlayersToStart) {
+    return validationError(
+      `${label[0].toUpperCase()}${label.slice(1)} rooms need at least ${minPlayersToStart} players to start`
+    );
   }
 
   // Atomically claim the open→voting transition. A concurrent second start
@@ -299,43 +262,7 @@ rooms.post("/:code/start", async (c) => {
     return invalidStatus("Room has already started voting");
   }
 
-  if (room.mode === "rank") {
-    const items = await db
-      .prepare("SELECT id FROM items WHERE room_id = ? ORDER BY sort_order ASC")
-      .bind(room.id)
-      .all<{ id: string }>();
-    const ids = items.results.map((r) => r.id);
-    for (let i = ids.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [ids[i], ids[j]] = [ids[j], ids[i]];
-    }
-
-    const statements = ids.map((id, order) =>
-      db
-        .prepare("UPDATE items SET presentation_order = ? WHERE id = ?")
-        .bind(order, id)
-    );
-    await db.batch(statements);
-  } else if (room.mode === "bracket") {
-    // Shuffle items
-    const items = await db
-      .prepare("SELECT id FROM items WHERE room_id = ? ORDER BY sort_order ASC")
-      .bind(room.id)
-      .all<{ id: string }>();
-    const ids = items.results.map((r) => r.id);
-    for (let i = ids.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [ids[i], ids[j]] = [ids[j], ids[i]];
-    }
-
-    // Round 1 with rolling byes: floor(N/2) matchups plus one bye when N is odd.
-    const nowIso = new Date().toISOString();
-    const statements = planRound(ids, 1).map((planned) =>
-      insertMatchupStatement(db, room.id, 1, planned, nowIso)
-    );
-    await db.batch(statements);
-  }
-  // vote/mlt/tier modes need no extra setup — the claim above flipped status.
+  await modeHandler(room.mode).onStart?.(db, room);
 
   return Response.json({ success: true, status: "voting", itemCount, mode: room.mode });
 });
@@ -351,24 +278,9 @@ rooms.get("/:code", async (c) => {
 
   const isCreator = voterId && voterId === room.creator_voter_id;
 
-  // In open status: creator always sees items; participants see items only if suggestions enabled
+  const handler = modeHandler(room.mode);
   let items: { id: string; title: string; addedBy: { name: string } | null }[] = [];
-  const showItemsForVoteMode =
-    room.mode === "vote" &&
-    (room.status !== "open" || isCreator || room.allow_suggestions);
-  const showItemsForRankMode = room.mode === "rank" && room.status === "open" && isCreator;
-  const showItemsForBracketMode = room.mode === "bracket" && room.status === "open" && isCreator;
-  const showItemsForMltMode =
-    room.mode === "mlt" && (room.status !== "open" || isCreator);
-  const showItemsForTierMode =
-    room.mode === "tier" && (room.status !== "open" || isCreator);
-  if (
-    showItemsForVoteMode ||
-    showItemsForRankMode ||
-    showItemsForBracketMode ||
-    showItemsForMltMode ||
-    showItemsForTierMode
-  ) {
+  if (handler.showItems(room, !!isCreator)) {
     const allItems = await getItemsByRoomId(db, room.id);
     items = allItems.map((item) => ({
       id: item.id,
@@ -387,58 +299,14 @@ rooms.get("/:code", async (c) => {
     items,
   };
 
+  // The viewer's own submissions so far, so a reopened app can resume.
   if (voterId) {
-    const votes = await getVotesByRoomAndVoter(db, room.id, voterId);
-    const myVotes: Record<string, string> = {};
-    for (const vote of votes) {
-      myVotes[vote.item_id] = vote.vote;
-    }
-    response.myVotes = myVotes;
-
-    if (room.mode === "rank") {
-      const rankings = await getRankingsByRoomAndVoter(db, room.id, voterId);
-      const myRankings: Record<string, number> = {};
-      for (const r of rankings) {
-        myRankings[r.item_id] = r.rank;
-      }
-      response.myRankings = myRankings;
-    }
-
-    if (room.mode === "mlt") {
-      const mltVotes = await getMltVotesByVoter(db, room.id, voterId);
-      const myMltVotes: Record<string, string> = {};
-      if (mltVotes.length > 0) {
-        // Speak public participant ids to the client, never raw voter ids.
-        const { results: parts } = await db
-          .prepare("SELECT id, voter_id FROM participants WHERE room_id = ?")
-          .bind(room.id)
-          .all<{ id: string; voter_id: string }>();
-        const participantIdByVoter = new Map(parts.map((p) => [p.voter_id, p.id]));
-        for (const v of mltVotes) {
-          const targetId = participantIdByVoter.get(v.target_voter_id);
-          if (targetId) myMltVotes[v.item_id] = targetId;
-        }
-      }
-      response.myMltVotes = myMltVotes;
-    }
-
-    if (room.mode === "tier") {
-      const placements = await getTierPlacementsByVoter(db, room.id, voterId);
-      const myTiers: Record<string, string> = {};
-      for (const p of placements) {
-        myTiers[p.item_id] = p.tier;
-      }
-      response.myTiers = myTiers;
-    }
+    Object.assign(response, await handler.myState?.(db, room, voterId));
   }
 
   response.roundNumber = room.round_number;
-  if (room.next_room_id) {
-    const latest = await getLatestSeriesRoom(db, room.series_id ?? room.id);
-    if (latest && latest.round_number > room.round_number) {
-      response.nextRoomCode = latest.code;
-    }
-  }
+  const nextRoomCode = await nextRoomCodeFor(db, room);
+  if (nextRoomCode) response.nextRoomCode = nextRoomCode;
 
   return Response.json(response);
 });
@@ -452,7 +320,7 @@ rooms.post("/:code/join", async (c) => {
   if (!voterId || typeof voterId !== "string") {
     return validationError("voterId is required");
   }
-  if (!voterName || typeof voterName !== "string" || voterName.length < 1 || voterName.length > 30) {
+  if (!isValidName(voterName)) {
     return validationError("voterName is required and must be 1-30 characters");
   }
 
@@ -532,14 +400,8 @@ rooms.patch("/:code/settings", async (c) => {
   if (!room) return notFound();
   if (room.creator_voter_id !== creatorVoterId) return notCreator();
   if (room.status !== "open") return invalidStatus("Settings can only be changed while the room is open");
-  if (room.mode === "rank" && allowSuggestions === true) {
-    return invalidStatus("Item suggestions are not available in blind rank rooms");
-  }
-  if (room.mode === "bracket" && allowSuggestions === true) {
-    return invalidStatus("Item suggestions are not available in bracket rooms");
-  }
-  if (room.mode === "tier" && allowSuggestions === true) {
-    return invalidStatus("Item suggestions are not available in tier list rooms");
+  if (allowSuggestions && !MODE_RULES[room.mode].suggestions) {
+    return invalidStatus(`Item suggestions are not available in ${MODE_RULES[room.mode].label} rooms`);
   }
 
   await db

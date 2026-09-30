@@ -11,6 +11,7 @@
     "deploy:worker": "wrangler deploy"
   },
   "dependencies": {
+    "@tot/shared": "*",
     "hono": "^4"
   },
   "devDependencies": {

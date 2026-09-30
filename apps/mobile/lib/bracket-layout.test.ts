@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { layoutBracket, type BracketLayout, type BracketLine } from "./bracket-layout";
-import { planRound } from "./bracket-shape";
+import { planRound } from "@tot/shared";
 import type { BracketRound, BracketMatchup } from "./api";
 
 // --- fixtures ----------------------------------------------------------------

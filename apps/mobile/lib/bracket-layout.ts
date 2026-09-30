@@ -12,7 +12,7 @@
 // rolling-bye shape rule, so the full bracket is visible from round 1.
 
 import type { BracketRound } from "./api";
-import { planRound } from "./bracket-shape";
+import { planRound } from "@tot/shared";
 
 export type LineState = "winner" | "loser" | "pending" | "placeholder" | "champion";
 
