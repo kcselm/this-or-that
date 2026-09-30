@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { colors, typography } from "../lib/theme";
+import { colors } from "../lib/theme";
 
 export default function RootLayout() {
   return (

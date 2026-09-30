@@ -125,6 +125,8 @@ export default function ShareScreen() {
         if (list) importList(list);
       }
     });
+    // Mount-only: the auto-import must run once, not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSaveAsList = async () => {

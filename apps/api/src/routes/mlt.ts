@@ -9,7 +9,7 @@ export const mltPrompts = createRouter();
 export const mlt = createRouter();
 
 // GET /api/mlt/prompts — Returns the curated prompt library.
-mltPrompts.get("/prompts", (c) => {
+mltPrompts.get("/prompts", () => {
   return Response.json({ prompts: MLT_PROMPTS });
 });
 

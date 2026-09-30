@@ -1,0 +1,8 @@
+node_modules
+dist
+.expo
+.wrangler
+.superpowers
+package-lock.json
+# Prose is hand-wrapped; only format code and config.
+*.md

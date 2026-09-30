@@ -8,7 +8,7 @@ import { getVoterId } from "../../../lib/storage";
 import { getRoom, submitVote } from "../../../lib/api";
 import { showAlert } from "../../../lib/alert";
 import { seededShuffle } from "../../../lib/shuffle";
-import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
+import { colors, spacing, radius, typography } from "../../../lib/theme";
 
 type Item = { id: string; title: string };
 

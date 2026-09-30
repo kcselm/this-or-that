@@ -1,6 +1,10 @@
 name = "tot-api"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-04-01"
+
+# Workers Logs: keeps console output and request traces in the dashboard.
+[observability]
+enabled = true
 
 [[d1_databases]]
 binding = "DB"

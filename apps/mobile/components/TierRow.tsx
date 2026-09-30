@@ -6,7 +6,7 @@ import {
   StyleSheet,
   type LayoutChangeEvent,
 } from "react-native";
-import { colors, radius, spacing, typography } from "../lib/theme";
+import { colors, radius, spacing } from "../lib/theme";
 import type { TierZone } from "../lib/tiers";
 
 export type ZoneRect = { x: number; y: number; width: number; height: number };

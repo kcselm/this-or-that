@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
