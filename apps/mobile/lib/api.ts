@@ -1,7 +1,7 @@
-import type { Mode, Tier } from "@tot/shared";
+import type { DraftOrder, Mode, Tier } from "@tot/shared";
 import type { RoomStatus } from "./modes";
 
-export type { Tier };
+export type { DraftOrder, Tier };
 
 // Override for local development: EXPO_PUBLIC_API_BASE=http://localhost:8787/api
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? "https://tot-api.kcselm93.workers.dev/api";
@@ -79,6 +79,9 @@ export function createRoom(body: {
   allowSuggestions?: boolean;
   mode?: Mode;
   previousRoomCode?: string;
+  /** Draft rooms only; the server ignores these for other modes. */
+  draftOrder?: DraftOrder;
+  draftRounds?: number;
 }) {
   return request<CreateRoomResponse>("/rooms", {
     method: "POST",
@@ -108,11 +111,25 @@ export function addItem(
   });
 }
 
+export type UpdateRoomSettingsResponse = {
+  success: boolean;
+  allowSuggestions: boolean;
+  /** Draft rooms only. */
+  draftOrder?: DraftOrder;
+  draftRounds?: number;
+};
+
+/** Send only the settings being changed; at least one is required. */
 export function updateRoomSettings(
   code: string,
-  body: { creatorVoterId: string; allowSuggestions: boolean }
+  body: {
+    creatorVoterId: string;
+    allowSuggestions?: boolean;
+    draftOrder?: DraftOrder;
+    draftRounds?: number;
+  }
 ) {
-  return request<{ success: boolean; allowSuggestions: boolean }>(`/rooms/${code}/settings`, {
+  return request<UpdateRoomSettingsResponse>(`/rooms/${code}/settings`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
@@ -159,6 +176,9 @@ export type RoomResponse = {
   myTiers?: Record<string, string>;
   roundNumber?: number;
   nextRoomCode?: string;
+  /** Draft rooms only. */
+  draftOrder?: DraftOrder;
+  draftRounds?: number;
 };
 
 export function getRoom(code: string, voterId?: string) {
@@ -291,7 +311,8 @@ export type RankResults = {
   }[];
 };
 
-export type RevealedResults = VoteResults | RankResults | BracketResults | MltResults | TierResults;
+export type RevealedResults =
+  VoteResults | RankResults | BracketResults | MltResults | TierResults | DraftResults;
 
 export type PendingResults = {
   revealed: false;
@@ -470,4 +491,85 @@ export type TierResults = {
   topic: string;
   consensus: TierConsensusRow[];
   players: TierPlayerBoard[];
+};
+
+// --- Draft endpoints (draft mode) ---
+
+/** A place in the draft order, drawn when the host starts. */
+export type DraftSeat = {
+  seat: number;
+  participantId: string;
+  name: string;
+  isCreator: boolean;
+  isYou: boolean;
+};
+
+export type DraftPick = {
+  pickIndex: number;
+  round: number;
+  seat: number;
+  participantId: string;
+  name: string;
+  title: string;
+};
+
+export type DraftResponse = {
+  status: RoomStatus;
+  draftOrder: DraftOrder;
+  rounds: number;
+  totalPicks: number;
+  /** In draft order. */
+  seats: DraftSeat[];
+  /** In pick order; public, so everyone sees what's been taken. */
+  picks: DraftPick[];
+  /** The seat on the clock; null once the draft is complete or the room revealed/closed. */
+  current: {
+    pickIndex: number;
+    round: number;
+    seat: number;
+    participantId: string;
+    name: string;
+    isYou: boolean;
+  } | null;
+  complete: boolean;
+};
+
+export function getDraft(code: string, voterId: string) {
+  return request<DraftResponse>(`/rooms/${code}/draft?voterId=${encodeURIComponent(voterId)}`);
+}
+
+export type SubmitPickResponse = {
+  success: boolean;
+  pick: { pickIndex: number; round: number; seat: number; title: string };
+  complete: boolean;
+  isRevealed: boolean;
+};
+
+export function submitPick(
+  code: string,
+  body: { voterId: string; voterName: string; title: string }
+) {
+  return request<SubmitPickResponse>(`/rooms/${code}/picks`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type DraftResults = {
+  revealed: true;
+  mode: "draft";
+  topic: string;
+  draftOrder: DraftOrder;
+  rounds: number;
+  totalPicks: number;
+  picksMade: number;
+  /** In seat order. A force-reveal mid-draft leaves some lists short. */
+  players: {
+    seat: number;
+    participantId: string;
+    name: string;
+    isCreator: boolean;
+    isYou: boolean;
+    picks: { pickIndex: number; round: number; title: string }[];
+  }[];
 };

@@ -1,4 +1,4 @@
-import type { Mode, PlannedSlot } from "@tot/shared";
+import type { DraftOrder, Mode, PlannedSlot } from "@tot/shared";
 
 export type Room = {
   id: string;
@@ -14,6 +14,9 @@ export type Room = {
   round_number: number;
   next_host_voter_id: string | null;
   next_room_id: string | null;
+  /** Draft rooms only; NULL for every other mode. */
+  draft_order: DraftOrder | null;
+  draft_rounds: number | null;
 };
 
 export type Item = {
@@ -314,4 +317,47 @@ export async function getLatestSeriesRoom(db: D1Database, seriesId: string): Pro
     )
     .bind(seriesId, nowIso())
     .first<Room>();
+}
+
+export type DraftSeat = {
+  room_id: string;
+  voter_id: string;
+  seat: number;
+};
+
+export type DraftPick = {
+  id: string;
+  room_id: string;
+  pick_index: number;
+  voter_id: string;
+  voter_name: string;
+  title: string;
+  title_key: string;
+  created_at: string;
+};
+
+/** The drawn turn order, seat 0 first. Empty until the room starts. */
+export async function getDraftSeats(db: D1Database, roomId: string): Promise<DraftSeat[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM draft_seats WHERE room_id = ? ORDER BY seat ASC")
+    .bind(roomId)
+    .all<DraftSeat>();
+  return results;
+}
+
+/** Every pick so far, in pick order. */
+export async function getDraftPicks(db: D1Database, roomId: string): Promise<DraftPick[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM draft_picks WHERE room_id = ? ORDER BY pick_index ASC")
+    .bind(roomId)
+    .all<DraftPick>();
+  return results;
+}
+
+export async function getDraftPickCount(db: D1Database, roomId: string): Promise<number> {
+  const row = await db
+    .prepare("SELECT COUNT(*) as count FROM draft_picks WHERE room_id = ?")
+    .bind(roomId)
+    .first<{ count: number }>();
+  return row?.count ?? 0;
 }

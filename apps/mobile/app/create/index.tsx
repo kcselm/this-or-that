@@ -13,9 +13,10 @@ import { showAlert } from "../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getSavedList, getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
-import { MODE_RULES } from "@tot/shared";
+import { DRAFT_ROUNDS, MODE_RULES, type DraftOrder } from "@tot/shared";
 import { parseMode } from "../../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
+import DraftSettings from "../../components/share/DraftSettings";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
@@ -34,6 +35,8 @@ export default function CreateRoomScreen() {
   const [topic, setTopic] = useState("");
   const [name, setName] = useState(nameParam ?? "");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
+  const [draftOrder, setDraftOrder] = useState<DraftOrder>("snake");
+  const [draftRounds, setDraftRounds] = useState<number>(DRAFT_ROUNDS.default);
   const [loading, setLoading] = useState(false);
 
   // Hosting from a saved list: its name is the natural topic.
@@ -60,6 +63,7 @@ export default function CreateRoomScreen() {
         creatorName: trimmedName,
         allowSuggestions: MODE_RULES[mode].suggestions ? allowSuggestions : false,
         mode,
+        ...(mode === "draft" ? { draftOrder, draftRounds } : {}),
         ...(previousRoomCode ? { previousRoomCode } : {}),
       });
       // A saved list replaces the MLT prompt library, so go straight to share.
@@ -138,6 +142,16 @@ export default function CreateRoomScreen() {
             thumbColor={allowSuggestions ? colors.teal : colors.mist}
           />
         </View>
+      )}
+
+      {mode === "draft" && (
+        <DraftSettings
+          order={draftOrder}
+          rounds={draftRounds}
+          onChangeOrder={setDraftOrder}
+          onChangeRounds={setDraftRounds}
+          disabled={loading}
+        />
       )}
 
       <Pressable

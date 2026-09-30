@@ -13,6 +13,7 @@ A mobile app for group decisions and party games. A host creates a **room** arou
 | Bracket        | `bracket` | Items face off head-to-head. Each round closes when everyone has voted; odd fields get a rolling bye.                            | 4–16           | 1                |
 | Most Likely To | `mlt`     | For each prompt, everyone votes for the player who fits best. Ties share the win.                                              | 3–15 prompts   | 3                |
 | Tier List      | `tier`    | Each player sorts every item into S–D and locks the board in one go. Reveal shows a consensus board plus every player's board.   | 3–12           | 1                |
+| Draft          | `draft`   | Players take turns typing picks for the topic (snake or circle order, drawn at random). No entry can be taken twice. Reveal shows every player's list. | none (players draft) | 2           |
 
 Automatic reveal needs at least 2 players (3 for Most Likely To). **The rules above live in `packages/shared/src/modes.ts` (`MODE_RULES`) — that file is the source of truth; the API enforces it and the app mirrors it.**
 
@@ -23,7 +24,7 @@ Blind Rank rooms can **keep playing**: after the reveal the host picks the next 
 - **App** — Expo SDK 54 (React Native 0.81, React 19), Expo Router (typed routes), `react-native-gesture-handler` + `react-native-reanimated` for swipe/drag. Targets iOS, Android, and web. Local state per screen plus AsyncStorage; no global store. StyleSheet + tokens in `lib/theme.ts`.
 - **API** — Hono on Cloudflare Workers (TypeScript), deployed with Wrangler. A weekly cron deletes expired rooms.
 - **Database** — Cloudflare D1 (SQLite), queried directly with prepared statements. Schema changes are numbered migrations in `apps/api/migrations/`.
-- **Shared** — `@tot/shared` workspace package (TypeScript source, no build step): modes and rules, tiers, bracket shape.
+- **Shared** — `@tot/shared` workspace package (TypeScript source, no build step): modes and rules, tiers, bracket shape, draft turn order.
 - **Monorepo** — npm workspaces: `apps/*`, `packages/*`.
 
 Communication is REST/JSON only. Screens that wait on other players poll (`lib/usePolling.ts`, which pauses while the app is backgrounded).
@@ -37,7 +38,7 @@ open ──start──▶ voting ──everyone done / host reveals──▶ rev
 ```
 
 - `open`: host edits items and settings; people join. Only the host sees the items, unless it's a swipe-vote room with suggestions on.
-- `voting`: items are locked. Joining is still allowed. Everyone sees the items, except in blind rank and bracket rooms, where the server deals them out (`/next-item`, `/bracket`) so nobody can peek ahead.
+- `voting`: items are locked. Joining is still allowed, except in draft rooms, whose turn order is fixed at start (`MODE_RULES.joinAfterStart`). Everyone sees the items, except in blind rank and bracket rooms, where the server deals them out (`/next-item`, `/bracket`) so nobody can peek ahead. Draft rooms have no items; the board lives at `/draft` and picks go to `/picks`.
 - `revealed`: results are visible to anyone with the code. Can't be closed (that would hide the results).
 - `closed`: the host ended the room early; nothing is shown.
 - Rooms **expire 48 hours after creation** (`expires_at`, an ISO string). Expired rooms 404 everywhere and are deleted by the weekly cron (`apps/api/src/lib/cleanup.ts`).
@@ -54,7 +55,7 @@ open ──start──▶ voting ──everyone done / host reveals──▶ rev
 ### API (`apps/api`)
 
 - `src/index.ts` — Hono app, CORS, error handler, route registration, and the `scheduled` cron handler.
-- `src/routes/` — HTTP handlers. `rooms.ts` (create, items, start, get, join, participants, settings, close, next-host), `results.ts` (status, results, force reveal), and one submission route per mode: `votes.ts`, `rankings.ts`, `bracket.ts`, `mlt.ts`, `tiers.ts`.
+- `src/routes/` — HTTP handlers. `rooms.ts` (create, items, start, get, join, participants, settings, close, next-host), `results.ts` (status, results, force reveal), and one submission route per mode: `votes.ts`, `rankings.ts`, `bracket.ts`, `mlt.ts`, `tiers.ts`, `draft.ts`.
 - `src/modes/` — **everything that differs between modes**, one `ModeHandler` per mode (`types.ts` documents the interface): item visibility, setup on start, resume state, progress, results. `index.ts` has the registry, `maybeReveal`, and the wrong-endpoint error. Shared routes call `modeHandler(room.mode)` and never branch on the mode themselves.
 - `src/db/queries.ts` — row types and query helpers. `schema.sql` mirrors the migrations for reference.
 - `src/lib/` — room codes, validation responses, participant helpers, series helper, cleanup.

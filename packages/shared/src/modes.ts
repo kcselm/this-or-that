@@ -1,7 +1,7 @@
 // Game modes and the rules that differ between them. The API enforces these
 // and the app mirrors them in its UI, so both import them from here.
 
-export const MODES = ["vote", "rank", "bracket", "mlt", "tier"] as const;
+export const MODES = ["vote", "rank", "bracket", "mlt", "tier", "draft"] as const;
 
 export type Mode = (typeof MODES)[number];
 
@@ -27,6 +27,8 @@ export type ModeRules = {
   minPlayersToReveal: number;
   /** Whether a revealed room can continue into another round with a new host. */
   series: boolean;
+  /** Whether new players may join once the room is voting (a draft's turn order is fixed). */
+  joinAfterStart: boolean;
 };
 
 export const MODE_RULES: Record<Mode, ModeRules> = {
@@ -40,6 +42,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
     series: false,
+    joinAfterStart: true,
   },
   rank: {
     label: "blind rank",
@@ -51,6 +54,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
     series: true,
+    joinAfterStart: true,
   },
   bracket: {
     label: "bracket",
@@ -62,6 +66,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
     series: false,
+    joinAfterStart: true,
   },
   mlt: {
     label: "Most Likely To",
@@ -73,6 +78,7 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     minPlayersToStart: 3,
     minPlayersToReveal: 3,
     series: false,
+    joinAfterStart: true,
   },
   tier: {
     label: "tier list",
@@ -84,6 +90,20 @@ export const MODE_RULES: Record<Mode, ModeRules> = {
     minPlayersToStart: 1,
     minPlayersToReveal: 2,
     series: false,
+    joinAfterStart: true,
+  },
+  draft: {
+    label: "draft",
+    itemNoun: "items",
+    // Players type their own picks once the draft starts; nothing is added up front.
+    minItems: 0,
+    maxItems: 0,
+    maxItemLength: 100,
+    suggestions: false,
+    minPlayersToStart: 2,
+    minPlayersToReveal: 2,
+    series: false,
+    joinAfterStart: false,
   },
 };
 

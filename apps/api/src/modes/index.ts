@@ -2,6 +2,7 @@ import { MODE_RULES, type Mode } from "@tot/shared";
 import type { Room } from "../db/queries";
 import { validationError } from "../lib/validation";
 import { bracketMode } from "./bracket";
+import { draftMode } from "./draft";
 import { mltMode } from "./mlt";
 import { rankMode } from "./rank";
 import { tierMode } from "./tier";
@@ -14,6 +15,7 @@ export const MODE_HANDLERS: Record<Mode, ModeHandler> = {
   bracket: bracketMode,
   mlt: mltMode,
   tier: tierMode,
+  draft: draftMode,
 };
 
 export function modeHandler(mode: Mode): ModeHandler {
@@ -32,7 +34,8 @@ export function wrongModeError(room: Room, expected: Mode): Response | null {
 /**
  * Reveal the room if every participant has finished and there are enough of
  * them. Safe to call concurrently: only a voting room can flip. Bracket rooms
- * reveal when their final closes instead (see routes/bracket.ts).
+ * reveal when their final closes instead (see routes/bracket.ts). Draft rooms
+ * call this after the last pick.
  */
 export async function maybeReveal(db: D1Database, room: Room): Promise<boolean> {
   const { voters } = await modeHandler(room.mode).progress(db, room);

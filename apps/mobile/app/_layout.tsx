@@ -47,6 +47,7 @@ export default function RootLayout() {
           options={{ title: "Most Likely To", headerShown: false }}
         />
         <Stack.Screen name="room/[code]/tier" options={{ headerShown: false }} />
+        <Stack.Screen name="room/[code]/draft" options={{ headerShown: false }} />
         <Stack.Screen name="room/[code]/round-reveal" options={{ headerShown: false }} />
         <Stack.Screen
           name="room/[code]/waiting"

@@ -68,7 +68,9 @@ export function headline(data: RevealedResults): string | null {
       const top = data.consensus.find((row) => row.items.length > 0);
       return top?.items[0]?.title ?? null;
     }
+    // Neither has a single winner: every player has their own list.
     case "rank":
+    case "draft":
       return null;
   }
 }

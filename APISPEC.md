@@ -11,13 +11,16 @@ All requests and responses are JSON. Timestamps are ISO 8601 UTC.
 - Unless noted, every endpoint returns `404 ROOM_NOT_FOUND` for unknown or expired rooms.
 - Per-mode limits (item counts, title lengths, player minimums) come from `MODE_RULES` in `packages/shared/src/modes.ts`:
 
-| Mode      | Items        | Title length | Players to start | Players to auto-reveal | Suggestions |
-| --------- | ------------ | ------------ | ---------------- | ---------------------- | ----------- |
-| `vote`    | 2–15         | 100          | 1                | 2                      | yes         |
-| `rank`    | exactly 5    | 100          | 1                | 2                      | no          |
-| `bracket` | 4–16         | 100          | 1                | 2                      | no          |
-| `mlt`     | 3–15 prompts | 80           | 3                | 3                      | no          |
-| `tier`    | 3–12         | 100          | 1                | 2                      | no          |
+| Mode      | Items                | Title length | Players to start | Players to auto-reveal | Suggestions |
+| --------- | -------------------- | ------------ | ---------------- | ---------------------- | ----------- |
+| `vote`    | 2–15                 | 100          | 1                | 2                      | yes         |
+| `rank`    | exactly 5            | 100          | 1                | 2                      | no          |
+| `bracket` | 4–16                 | 100          | 1                | 2                      | no          |
+| `mlt`     | 3–15 prompts         | 80           | 3                | 3                      | no          |
+| `tier`    | 3–12                 | 100          | 1                | 2                      | no          |
+| `draft`   | none (players draft) | 100          | 2                | 2                      | no          |
+
+In `draft` rooms the title length is the longest allowed pick.
 
 ## Rooms
 
@@ -32,13 +35,16 @@ Create a room. The creator is joined as its first participant.
   "creatorName": "Alex",
   "mode": "vote",
   "allowSuggestions": false,
-  "previousRoomCode": "HK7M3N"
+  "previousRoomCode": "HK7M3N",
+  "draftOrder": "snake",
+  "draftRounds": 5
 }
 ```
 
 - `topic`: 1–100 characters after trimming. `creatorName`: 1–30 after trimming.
 - `mode`: optional, defaults to `vote`.
 - `allowSuggestions`: optional; ignored for modes that don't allow suggestions.
+- `draftOrder` / `draftRounds`: optional, `draft` rooms only (ignored and stored empty for other modes). `draftOrder` is `snake` (default; the order reverses every round) or `circle` (same order every round); `draftRounds` is picks per player, a whole number 1–10 (default 5).
 - `previousRoomCode`: optional, for modes with series (blind rank). Chains this room onto a revealed room of the same mode as its next round. Only the next host that room's host picked may do this.
 
 **201**
@@ -82,6 +88,7 @@ Room details. Pass `voterId` to get your own submissions back for resuming.
 - `items`, in the host's order (clients shuffle per player). While `open`, only the host sees them, unless it's a `vote` room with suggestions on. Once started, blind rank and bracket rooms never list items here — they're dealt by `/next-item` and `/bracket`. `addedBy` names a participant who suggested the item.
 - Resume state, only with `voterId`: `myVotes` (vote: itemId → `yes`|`no`), `myRankings` (rank: itemId → rank), `myMltVotes` (mlt: itemId → participantId), `myTiers` (tier: itemId → tier).
 - `nextRoomCode`: present when a later round of this room's series exists.
+- `draftOrder` and `draftRounds`: present for `draft` rooms only. Draft rooms have no items, so `items` is always `[]`.
 
 ### POST /rooms/:code/join
 
@@ -91,7 +98,7 @@ Join, or rename yourself if already joined. Allowed while `open` or `voting`.
 { "voterId": "uuid", "voterName": "Jordan" }
 ```
 
-**200** `{ "success": true }`. Errors: `400 INVALID_STATUS` if closed or revealed.
+**200** `{ "success": true }`. Errors: `400 INVALID_STATUS` if closed or revealed. Draft rooms refuse new players once `voting` (`400 INVALID_STATUS`, "The draft has already started") because the turn order is fixed at the start; an existing participant can still rename.
 
 ### GET /rooms/:code/participants?voterId=
 
@@ -136,17 +143,17 @@ Host only, while `open`. **200** `{ "success": true, "totalItems": 4 }`. Errors:
 
 ### PATCH /rooms/:code/settings
 
-Host only, while `open`.
+Host only, while `open`. Every setting is optional, but at least one must be sent.
 
 ```json
-{ "creatorVoterId": "uuid", "allowSuggestions": true }
+{ "creatorVoterId": "uuid", "allowSuggestions": true, "draftOrder": "circle", "draftRounds": 3 }
 ```
 
-**200** `{ "success": true, "allowSuggestions": true }`. Errors: `400 INVALID_STATUS` for modes without suggestions.
+**200** echoes the room's current settings: `{ "success": true, "allowSuggestions": true }`, plus `draftOrder` and `draftRounds` for draft rooms. Errors: `400 VALIDATION_ERROR` (no setting sent, or a bad value), `400 INVALID_STATUS` (not open, suggestions in a mode without them, draft settings in a non-draft room).
 
 ### POST /rooms/:code/start
 
-Host only. Moves `open` → `voting` atomically (a second concurrent start gets a 400). Blind rank rooms get their shared deal order; bracket rooms get round 1.
+Host only. Moves `open` → `voting` atomically (a second concurrent start gets a 400). Blind rank rooms get their shared deal order; bracket rooms get round 1; draft rooms get a random turn order.
 
 ```json
 { "creatorVoterId": "uuid" }
@@ -160,7 +167,7 @@ Host only. Ends an `open` or `voting` room for everyone. **200** `{ "success": t
 
 ## Playing
 
-Every submission requires the caller to have joined, the room to be `voting`, and the right endpoint for the room's mode — otherwise `400` with a message naming the right endpoint. When a submission completes the last player, the room reveals itself (bracket: when the final is decided).
+Every submission requires the caller to have joined, the room to be `voting`, and the right endpoint for the room's mode — otherwise `400` with a message naming the right endpoint. When a submission completes the last player, the room reveals itself (bracket: when the final is decided; draft: after the last pick).
 
 ### POST /rooms/:code/votes — `vote`
 
@@ -249,6 +256,61 @@ Lock in a whole board at once. Every item must be placed exactly once in `S`, `A
 
 **201** `{ "success": true, "progress": { "placed": 4, "total": 4 }, "isRevealed": false }`.
 
+### GET /rooms/:code/draft?voterId= — `draft`
+
+The draft board, polled by the play screen. Picks are public: everyone sees what's been taken.
+
+```json
+{
+  "status": "voting",
+  "draftOrder": "snake",
+  "rounds": 5,
+  "totalPicks": 15,
+  "seats": [
+    { "seat": 0, "participantId": "uuid", "name": "Alex", "isCreator": true, "isYou": false }
+  ],
+  "picks": [
+    {
+      "pickIndex": 0,
+      "round": 0,
+      "seat": 0,
+      "participantId": "uuid",
+      "name": "Alex",
+      "title": "Pepperoni"
+    }
+  ],
+  "current": {
+    "pickIndex": 1,
+    "round": 0,
+    "seat": 1,
+    "participantId": "uuid",
+    "name": "Mia",
+    "isYou": true
+  },
+  "complete": false
+}
+```
+
+- `seats` in draft order (drawn at random when the host starts); `picks` in pick order. `pickIndex`, `round` and `seat` are 0-based.
+- `current` is the seat on the clock, or `null` once the draft is complete or the room is revealed or closed. `status` is the room's status, so the client can route to results.
+- Errors: `400 INVALID_STATUS` while `open` or for non-draft rooms.
+
+### POST /rooms/:code/picks — `draft`
+
+Draft an entry on your turn.
+
+```json
+{ "voterId": "uuid", "voterName": "Mia", "title": "Mushrooms" }
+```
+
+- `title`: 1–100 characters after trimming; stored trimmed.
+- No entry can be taken twice. Entries are compared trimmed, with whitespace collapsed and case ignored, so `Pepperoni`, `pepperoni ` and `PEPPERONI` are the same pick.
+- Turn order and duplicates are enforced by unique constraints, so two racing picks leave exactly one row.
+
+**201** `{ "success": true, "pick": { "pickIndex": 1, "round": 0, "seat": 1, "title": "Mushrooms" }, "complete": false, "isRevealed": false }`. The last pick reveals the room.
+
+Errors: `400 NOT_YOUR_TURN` ("It's Alex's turn"), `409 DUPLICATE_PICK` ("Pepperoni has already been drafted"; the turn doesn't move), `400 INVALID_STATUS` (not voting, or the draft is complete), `400 VALIDATION_ERROR`.
+
 ## Progress and results
 
 ### GET /rooms/:code/status
@@ -266,6 +328,7 @@ Polled by the lobby and waiting screens.
 
 - A voter is complete once they've submitted for every item (bracket: every real matchup in the current round).
 - Bracket adds `currentRound` (`null` once revealed) and `totalThisRound`.
+- Draft: a player is complete once they've made all their picks. Adds `picksMade`, `totalPicks`, and `currentPick` (`{ participantId, name }` on the clock, or `null` once complete or revealed).
 - Blind rank adds `roundNumber`, `nextHost` (`{ participantId, name }` or `null`), and `nextRoomCode` (or `null`) for keep-playing.
 
 ### GET /rooms/:code/results?voterId=
@@ -276,7 +339,7 @@ Before the reveal:
 { "revealed": false, "mode": "vote", "completedCount": 2, "totalVoters": 3 }
 ```
 
-(Bracket adds `currentRound` and `totalThisRound`.)
+(Bracket adds `currentRound` and `totalThisRound`; draft adds `picksMade` and `totalPicks`.)
 
 After the reveal, every response has `revealed: true`, `mode`, and `topic`, plus:
 
@@ -285,6 +348,7 @@ After the reveal, every response has `revealed: true`, `mode`, and `topic`, plus
 - **bracket** — `totalRounds`, `winner` (`{ id, title }`, or `null` if the host revealed before the final), and `rounds` as in `/bracket` with every breakdown.
 - **mlt** — `prompts: [{ itemId, text, sortOrder, tallies: [{ targetParticipantId, name, count }], winners: [{ participantId, name }], totalVotes }]` and `leaderboard: [{ participantId, name, wins, isYou }]`. Everyone tied for the most votes wins the prompt.
 - **tier** — `consensus: [{ tier, items: [{ itemId, title, average }] }]` (each item's average tier value, S=5…D=1, rounded back to a tier) and `players` like rank, with `placements: [{ itemId, title, tier }]`.
+- **draft** — `draftOrder`, `rounds`, `totalPicks`, `picksMade`, and `players: [{ seat, participantId, name, isCreator, isYou, picks: [{ pickIndex, round, title }] }]` in seat (draft) order, each with their picks in pick order. After a host reveal mid-draft some lists are shorter than `rounds`.
 
 ### POST /rooms/:code/reveal
 
@@ -311,15 +375,17 @@ Host only, after the reveal: pick who hosts the next round. Omit `nextParticipan
 { "error": { "code": "ROOM_NOT_FOUND", "message": "Room not found or expired" } }
 ```
 
-| Code               | Status | Meaning                                              |
-| ------------------ | ------ | ---------------------------------------------------- |
-| `VALIDATION_ERROR` | 400    | Bad input, or not a participant                      |
-| `INVALID_STATUS`   | 400    | Not allowed in the room's current status or mode     |
-| `NOT_CREATOR`      | 403    | Host-only action                                     |
-| `NOT_NEXT_HOST`    | 403    | Someone else was picked to host the next round       |
-| `ROOM_NOT_FOUND`   | 404    | Unknown or expired room                              |
-| `SERIES_CONTINUED` | 409    | The next round has already been created              |
-| `INTERNAL_ERROR`   | 500    | Server error                                         |
+| Code               | Status | Meaning                                          |
+| ------------------ | ------ | ------------------------------------------------ |
+| `VALIDATION_ERROR` | 400    | Bad input, or not a participant                  |
+| `INVALID_STATUS`   | 400    | Not allowed in the room's current status or mode |
+| `NOT_CREATOR`      | 403    | Host-only action                                 |
+| `NOT_NEXT_HOST`    | 403    | Someone else was picked to host the next round   |
+| `NOT_YOUR_TURN`    | 400    | Another seat is on the clock                     |
+| `DUPLICATE_PICK`   | 409    | That entry has already been drafted              |
+| `ROOM_NOT_FOUND`   | 404    | Unknown or expired room                          |
+| `SERIES_CONTINUED` | 409    | The next round has already been created          |
+| `INTERNAL_ERROR`   | 500    | Server error                                     |
 
 ## CORS and limits
 

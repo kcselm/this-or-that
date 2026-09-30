@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { MODE_RULES } from "@tot/shared";
+import { DRAFT_ROUNDS, MODE_RULES, type DraftOrder } from "@tot/shared";
 import {
   getVoterId,
   getSavedLists,
@@ -39,6 +39,7 @@ import { showAlert } from "../../lib/alert";
 import RoomCodeCard from "../../components/share/RoomCodeCard";
 import ItemEditor from "../../components/share/ItemEditor";
 import ParticipantChips from "../../components/share/ParticipantChips";
+import DraftSettings from "../../components/share/DraftSettings";
 
 // The host's lobby: share the code, edit the items, watch people join, start.
 export default function ShareScreen() {
@@ -59,6 +60,11 @@ export default function ShareScreen() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [items, setItems] = useState<RoomItem[]>([]);
   const [allowSuggestions, setAllowSuggestions] = useState(false);
+  const [draftOrder, setDraftOrder] = useState<DraftOrder>("snake");
+  const [draftRounds, setDraftRounds] = useState<number>(DRAFT_ROUNDS.default);
+  // Draft settings PATCHes still in flight. A poll that started before one
+  // landed would put the old value back, so polls leave them alone meanwhile.
+  const pendingDraftUpdates = useRef(0);
   const [topic, setTopic] = useState("");
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [importing, setImporting] = useState(false);
@@ -74,6 +80,10 @@ export default function ShareScreen() {
       setItems(room.items);
       if (room.mode) setMode(room.mode);
       setAllowSuggestions(room.allowSuggestions);
+      if (pendingDraftUpdates.current === 0) {
+        if (room.draftOrder) setDraftOrder(room.draftOrder);
+        if (room.draftRounds) setDraftRounds(room.draftRounds);
+      }
       if (room.topic) setTopic(room.topic);
 
       const data = await getParticipants(code);
@@ -127,7 +137,8 @@ export default function ShareScreen() {
   useEffect(() => {
     getSavedLists().then((lists) => {
       setSavedLists(lists);
-      if (listId && !autoImported.current) {
+      // Draft rooms have no items to import into.
+      if (listId && !autoImported.current && parseMode(modeParam) !== "draft") {
         autoImported.current = true;
         const list = lists.find((l) => l.id === listId);
         if (list) importList(list);
@@ -196,6 +207,34 @@ export default function ShareScreen() {
     }
   };
 
+  const updateDraftSettings = async (
+    change: { draftOrder: DraftOrder } | { draftRounds: number },
+    revert: () => void
+  ) => {
+    pendingDraftUpdates.current += 1;
+    try {
+      const voterId = await getVoterId();
+      await updateRoomSettings(code, { creatorVoterId: voterId, ...change });
+    } catch (e: any) {
+      revert();
+      showAlert("Error", e.message);
+    } finally {
+      pendingDraftUpdates.current -= 1;
+    }
+  };
+
+  const handleChangeDraftOrder = (value: DraftOrder) => {
+    const previous = draftOrder;
+    setDraftOrder(value);
+    updateDraftSettings({ draftOrder: value }, () => setDraftOrder(previous));
+  };
+
+  const handleChangeDraftRounds = (value: number) => {
+    const previous = draftRounds;
+    setDraftRounds(value);
+    updateDraftSettings({ draftRounds: value }, () => setDraftRounds(previous));
+  };
+
   const handleClose = async () => {
     const confirmed =
       Platform.OS === "web"
@@ -261,17 +300,30 @@ export default function ShareScreen() {
         </Animated.View>
       )}
 
-      <ItemEditor
-        items={items}
-        maxItems={maxItems}
-        maxItemLength={maxItemLength}
-        onAdd={handleAddItem}
-        onDelete={handleDeleteItem}
-        savedLists={savedLists}
-        importing={importing}
-        onImport={importList}
-        onSaveAsList={handleSaveAsList}
-      />
+      {mode === "draft" ? (
+        <Animated.View entering={FadeInDown.duration(400).delay(200)}>
+          <Text style={styles.caption}>Players draft their own entries once you start.</Text>
+          <DraftSettings
+            order={draftOrder}
+            rounds={draftRounds}
+            onChangeOrder={handleChangeDraftOrder}
+            onChangeRounds={handleChangeDraftRounds}
+            disabled={loading}
+          />
+        </Animated.View>
+      ) : (
+        <ItemEditor
+          items={items}
+          maxItems={maxItems}
+          maxItemLength={maxItemLength}
+          onAdd={handleAddItem}
+          onDelete={handleDeleteItem}
+          savedLists={savedLists}
+          importing={importing}
+          onImport={importList}
+          onSaveAsList={handleSaveAsList}
+        />
+      )}
 
       <ParticipantChips participants={participants} />
 
@@ -327,6 +379,11 @@ const styles = StyleSheet.create({
   toggleText: {
     ...typography.bodyBold,
     color: colors.charcoal,
+  },
+  caption: {
+    ...typography.body,
+    color: colors.slate,
+    marginBottom: spacing.sm,
   },
   bottomSection: {
     marginTop: "auto",

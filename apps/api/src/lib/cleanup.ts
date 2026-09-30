@@ -7,6 +7,8 @@ const CHILD_TABLES = [
   "tier_placements",
   "rankings",
   "votes",
+  "draft_picks",
+  "draft_seats",
   "participants",
   "items",
 ] as const;

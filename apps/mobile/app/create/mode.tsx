@@ -2,6 +2,7 @@ import { Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
+import { PLAYER_COLORS } from "../../lib/player-colors";
 
 export default function ModePickerScreen() {
   const router = useRouter();
@@ -104,6 +105,25 @@ export default function ModePickerScreen() {
           </Text>
         </Pressable>
       </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(400).delay(600).springify()}>
+        <Pressable
+          style={({ pressed }) => [styles.card, styles.cardDraft, pressed && styles.cardPressed]}
+          onPress={() =>
+            router.push({
+              pathname: "/create",
+              params: { mode: "draft", ...(listId ? { listId } : {}) },
+            })
+          }
+        >
+          <Text style={styles.cardEmoji}>✎</Text>
+          <Text style={styles.cardTitle}>Draft</Text>
+          <Text style={styles.cardDescription}>
+            Pick a topic. Take turns drafting the best entries you can think of — once something's
+            taken, it's gone.
+          </Text>
+        </Pressable>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -141,6 +161,9 @@ const styles = StyleSheet.create({
   },
   cardTier: {
     borderColor: "#3FA45B", // tier "C" green accent
+  },
+  cardDraft: {
+    borderColor: PLAYER_COLORS[4].border, // the pink no other card uses
   },
   cardPressed: {
     transform: [{ scale: 0.98 }],

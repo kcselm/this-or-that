@@ -169,3 +169,16 @@ This document captures why each technical decision was made, so future-you (or c
 - Weekly is plenty for how little the app is used: expiry is already enforced on every request, so the cron only reclaims space and frees codes
 - Deletes run in D1 batches of 200 rooms (children first, because D1 enforces foreign keys), each a single transaction, repeated until nothing expired is left
 - `expires_at` is compared against a bound ISO timestamp, never SQLite's `datetime('now')`, whose different format made rooms outlive their 48 hours
+
+## Draft Turns Are Enforced by Unique Constraints
+
+**Decision**: In a draft room the turn order is a seating drawn at random when the host starts, and each pick is a row with a global `pick_index` and a normalized `title_key`, both `UNIQUE` per room. Whose turn it is falls out of the pick count and the seating (`seatForPick` in `@tot/shared`); the constraints decide races. Nobody may join once a draft has started.
+
+**Why**:
+
+- Two players tapping "Draft it" at the same moment must not both succeed, and the same entry must not be drafted twice in different spellings of case or spacing. Checking with a SELECT first would leave a window; letting the INSERT fail on `UNIQUE(room_id, pick_index)` or `UNIQUE(room_id, title_key)` closes it, and the route maps the violation to `NOT_YOUR_TURN` or `DUPLICATE_PICK`
+- Storing the seating rather than deriving it from join order lets the order be random, so the host has no edge from creating the room, and makes it immune to renames and rejoins
+- A latecomer can't be seated without changing everyone else's remaining turns, so joins are refused while voting. That's a rule in `MODE_RULES` (`joinAfterStart`), not a mode check in the join route, so the next turn-based mode gets it for free
+
+**Alternatives considered**: A `current_seat` column on the room updated per pick (a second write that can drift from the picks table); seating latecomers at the end of the order (unfair in a snake draft, and confusing mid-round).
+

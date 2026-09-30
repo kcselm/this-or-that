@@ -12,7 +12,9 @@ CREATE TABLE rooms (
   series_id TEXT,
   round_number INTEGER NOT NULL DEFAULT 1,
   next_host_voter_id TEXT,
-  next_room_id TEXT
+  next_room_id TEXT,
+  draft_order TEXT,
+  draft_rounds INTEGER
 );
 
 -- Items in a room
@@ -115,6 +117,29 @@ CREATE TABLE tier_placements (
   UNIQUE(item_id, voter_id)
 );
 
+-- Draft seats (draft mode): the turn order drawn when the room starts
+CREATE TABLE draft_seats (
+  room_id TEXT NOT NULL REFERENCES rooms(id),
+  voter_id TEXT NOT NULL,
+  seat INTEGER NOT NULL,
+  PRIMARY KEY (room_id, seat),
+  UNIQUE (room_id, voter_id)
+);
+
+-- Draft picks (draft mode): one per pick; the UNIQUEs enforce turn order and no duplicates
+CREATE TABLE draft_picks (
+  id TEXT PRIMARY KEY,
+  room_id TEXT NOT NULL REFERENCES rooms(id),
+  pick_index INTEGER NOT NULL,
+  voter_id TEXT NOT NULL,
+  voter_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  title_key TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (room_id, pick_index),
+  UNIQUE (room_id, title_key)
+);
+
 -- Indexes
 CREATE INDEX idx_rooms_expires ON rooms(expires_at);
 CREATE INDEX idx_rooms_series ON rooms(series_id);
@@ -134,3 +159,4 @@ CREATE INDEX idx_mlt_votes_item ON mlt_votes(item_id);
 CREATE INDEX idx_mlt_votes_room_voter ON mlt_votes(room_id, voter_id);
 CREATE INDEX idx_tier_placements_room ON tier_placements(room_id);
 CREATE INDEX idx_tier_placements_room_voter ON tier_placements(room_id, voter_id);
+CREATE INDEX idx_draft_picks_room_voter ON draft_picks(room_id, voter_id);
