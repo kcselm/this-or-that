@@ -22,7 +22,15 @@ import {
   type ResultsResponse,
   type Participant,
 } from "../../../lib/api";
-import { getVoterId, clearActiveRoom, getActiveRoom, saveActiveRoom } from "../../../lib/storage";
+import {
+  getVoterId,
+  clearActiveRoom,
+  getActiveRoom,
+  saveActiveRoom,
+  getSavedResult,
+  saveResult,
+} from "../../../lib/storage";
+import type { RevealedResults } from "../../../lib/saved-results";
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
 import RankPlayerCard from "../../../components/RankPlayerCard";
@@ -48,7 +56,14 @@ const MEDAL_COLORS = [
 export default function ResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { code, name } = useLocalSearchParams<{ code: string; name?: string }>();
+  // `saved=1` opens a snapshot from Past Results instead of the live room,
+  // which may have expired or been closed since.
+  const { code, name, saved } = useLocalSearchParams<{
+    code: string;
+    name?: string;
+    saved?: string;
+  }>();
+  const fromHistory = saved === "1";
   const [voteData, setVoteData] = useState<RevealedVoteResults | null>(null);
   const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
   const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
@@ -61,34 +76,45 @@ export default function ResultsScreen() {
   const [advancing, setAdvancing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
+  const showResults = (res: RevealedResults) => {
+    if ("mode" in res && res.mode === "rank") {
+      setRankData(res);
+    } else if ("mode" in res && res.mode === "bracket") {
+      setBracketData(res);
+    } else if ("mode" in res && res.mode === "mlt") {
+      setMltData(res);
+    } else if ("mode" in res && res.mode === "tier") {
+      setTierData(res);
+    } else {
+      setVoteData(res as RevealedVoteResults);
+    }
+  };
+
   const loadResults = async () => {
     setLoading(true);
     setError(null);
+    if (fromHistory) {
+      const entry = await getSavedResult(code);
+      if (entry) showResults(entry.data);
+      else setError("These results are no longer saved on this device.");
+      setLoading(false);
+      return;
+    }
     try {
       const voterId = await getVoterId();
       const res = await getResults(code, voterId);
       if (!res.revealed) {
         setError("Results aren't ready yet. Waiting for everyone to finish.");
       } else {
-        if ("mode" in res && res.mode === "rank") {
-          // Rank rooms may continue into another round — keep the rejoin
-          // banner alive until the player actually leaves for home.
-          setRankData(res);
-        } else {
-          // Only forget the room once we've actually shown its results —
-          // clearing on mount destroyed the rejoin banner for live rooms
-          // whenever this screen was reached early.
-          clearActiveRoom();
-          if ("mode" in res && res.mode === "bracket") {
-            setBracketData(res as RevealedBracketResults);
-          } else if ("mode" in res && res.mode === "mlt") {
-            setMltData(res as RevealedMltResults);
-          } else if ("mode" in res && res.mode === "tier") {
-            setTierData(res as RevealedTierResults);
-          } else {
-            setVoteData(res as RevealedVoteResults);
-          }
-        }
+        // Keep a local copy — the room is deleted from the server after 48h.
+        saveResult(code, res).catch(() => {});
+        // Rank rooms may continue into another round — keep the rejoin
+        // banner alive until the player actually leaves for home. Other
+        // modes forget the room only once its results are actually shown —
+        // clearing on mount destroyed the rejoin banner for live rooms
+        // whenever this screen was reached early.
+        if (!("mode" in res && res.mode === "rank")) clearActiveRoom();
+        showResults(res);
       }
     } catch (e: any) {
       setError(e.message);
@@ -170,6 +196,11 @@ export default function ResultsScreen() {
 
   usePolling(async (stop) => {
     stopRef.current = stop;
+    // A saved snapshot is a record, not a live room — no next-round flow.
+    if (fromHistory) {
+      stop();
+      return;
+    }
     // Series flow exists only for rank rooms; stop once another mode loaded.
     if (voteData || bracketData || mltData || tierData) {
       stop();
@@ -216,6 +247,18 @@ export default function ResultsScreen() {
     }
   };
 
+  // From Past Results, "home" means back to the history list, and leaving
+  // mustn't touch the rejoin banner.
+  const homeLabel = fromHistory ? "Back to Past Results" : "Back to Home";
+  const leave = async (clearRoom = false) => {
+    if (fromHistory) {
+      router.back();
+      return;
+    }
+    if (clearRoom) await clearActiveRoom();
+    router.replace("/");
+  };
+
   if (loading) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
@@ -237,9 +280,9 @@ export default function ResultsScreen() {
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
-          onPress={() => router.replace("/")}
+          onPress={() => leave()}
         >
-          <Text style={styles.homeLinkText}>Back to Home</Text>
+          <Text style={styles.homeLinkText}>{homeLabel}</Text>
         </Pressable>
       </View>
     );
@@ -305,12 +348,9 @@ export default function ResultsScreen() {
         )}
         <Pressable
           style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
-          onPress={async () => {
-            await clearActiveRoom();
-            router.replace("/");
-          }}
+          onPress={() => leave(true)}
         >
-          <Text style={styles.homeLinkText}>Back to Home</Text>
+          <Text style={styles.homeLinkText}>{homeLabel}</Text>
         </Pressable>
 
         <Modal
@@ -351,10 +391,8 @@ export default function ResultsScreen() {
       <ScrollView style={{ flex: 1, backgroundColor: colors.cream, paddingTop: insets.top }}>
         <MltResultsView
           data={mltData}
-          onHome={async () => {
-            await clearActiveRoom();
-            router.replace("/");
-          }}
+          homeLabel={homeLabel}
+          onHome={() => leave(true)}
         />
       </ScrollView>
     );
@@ -384,9 +422,9 @@ export default function ResultsScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
-          onPress={() => router.replace("/")}
+          onPress={() => leave()}
         >
-          <Text style={styles.homeLinkText}>Back to Home</Text>
+          <Text style={styles.homeLinkText}>{homeLabel}</Text>
         </Pressable>
       </ScrollView>
     );
@@ -397,19 +435,21 @@ export default function ResultsScreen() {
       <TierResultsView
         data={tierData}
         insets={insets}
-        onHome={() => router.replace("/")}
+        homeLabel={homeLabel}
+        onHome={() => leave()}
       />
     );
   }
 
   // Vote-mode results
-  return renderVoteResults(voteData!, insets, router);
+  return renderVoteResults(voteData!, insets, homeLabel, () => leave());
 }
 
 function renderVoteResults(
   data: RevealedVoteResults,
   insets: ReturnType<typeof useSafeAreaInsets>,
-  router: ReturnType<typeof useRouter>
+  homeLabel: string,
+  onHome: () => void
 ) {
   const winner = data.results[0];
   return (
@@ -488,9 +528,9 @@ function renderVoteResults(
       <Animated.View entering={FadeInDown.duration(400).delay(600)}>
         <Pressable
           style={({ pressed }) => [styles.homeButton, pressed && styles.homeButtonPressed]}
-          onPress={() => router.replace("/")}
+          onPress={onHome}
         >
-          <Text style={styles.homeButtonText}>Back to Home</Text>
+          <Text style={styles.homeButtonText}>{homeLabel}</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -759,9 +799,11 @@ const styles = StyleSheet.create({
 
 function MltResultsView({
   data,
+  homeLabel,
   onHome,
 }: {
   data: RevealedMltResults;
+  homeLabel: string;
   onHome: () => void;
 }) {
   const [phase, setPhase] = useState<"reveal" | "leaderboard">("reveal");
@@ -814,7 +856,7 @@ function MltResultsView({
       </Pressable>
       <Pressable style={[mltResultsStyles.btn, mltResultsStyles.btnSecondary]} onPress={onHome}>
         <Text style={[mltResultsStyles.btnText, mltResultsStyles.btnTextSecondary]}>
-          Back to home
+          {homeLabel}
         </Text>
       </Pressable>
     </View>
@@ -852,10 +894,12 @@ const mltResultsStyles = StyleSheet.create({
 function TierResultsView({
   data,
   insets,
+  homeLabel,
   onHome,
 }: {
   data: RevealedTierResults;
   insets: ReturnType<typeof useSafeAreaInsets>;
+  homeLabel: string;
   onHome: () => void;
 }) {
   // Tab 0 = Consensus; tabs 1..N = each player's board.
@@ -926,7 +970,7 @@ function TierResultsView({
         style={({ pressed }) => [tierResultsStyles.homeButton, pressed && { opacity: 0.85 }]}
         onPress={onHome}
       >
-        <Text style={tierResultsStyles.homeButtonText}>Back to Home</Text>
+        <Text style={tierResultsStyles.homeButtonText}>{homeLabel}</Text>
       </Pressable>
     </ScrollView>
   );
