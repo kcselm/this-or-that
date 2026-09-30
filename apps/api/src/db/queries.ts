@@ -103,10 +103,7 @@ export async function getRankingsByRoomAndVoter(
   return results;
 }
 
-export async function getRankingsByRoom(
-  db: D1Database,
-  roomId: string
-): Promise<Ranking[]> {
+export async function getRankingsByRoom(db: D1Database, roomId: string): Promise<Ranking[]> {
   const { results } = await db
     .prepare("SELECT * FROM rankings WHERE room_id = ? ORDER BY voter_id, rank ASC")
     .bind(roomId)
@@ -157,10 +154,7 @@ export type MatchupVote = {
   created_at: string;
 };
 
-export async function getMatchupsByRoom(
-  db: D1Database,
-  roomId: string
-): Promise<Matchup[]> {
+export async function getMatchupsByRoom(db: D1Database, roomId: string): Promise<Matchup[]> {
   const { results } = await db
     .prepare("SELECT * FROM matchups WHERE room_id = ? ORDER BY round ASC, slot ASC")
     .bind(roomId)
@@ -248,10 +242,7 @@ export type MltVote = {
   created_at: string;
 };
 
-export async function getMltVotesByRoom(
-  db: D1Database,
-  roomId: string
-): Promise<MltVote[]> {
+export async function getMltVotesByRoom(db: D1Database, roomId: string): Promise<MltVote[]> {
   const { results } = await db
     .prepare("SELECT * FROM mlt_votes WHERE room_id = ?")
     .bind(roomId)
@@ -307,10 +298,7 @@ export async function getTierPlacementsByVoter(
 // Voter ids of everyone who has hosted a round in this series. The first
 // room's series_id is only backfilled once a successor exists, so match on
 // series_id OR the series root id itself.
-export async function getSeriesHostVoterIds(
-  db: D1Database,
-  seriesId: string
-): Promise<string[]> {
+export async function getSeriesHostVoterIds(db: D1Database, seriesId: string): Promise<string[]> {
   const { results } = await db
     .prepare("SELECT DISTINCT creator_voter_id FROM rooms WHERE series_id = ?1 OR id = ?1")
     .bind(seriesId)
@@ -319,10 +307,7 @@ export async function getSeriesHostVoterIds(
 }
 
 // Newest unexpired room in a series — the round latecomers should land in.
-export async function getLatestSeriesRoom(
-  db: D1Database,
-  seriesId: string
-): Promise<Room | null> {
+export async function getLatestSeriesRoom(db: D1Database, seriesId: string): Promise<Room | null> {
   return db
     .prepare(
       "SELECT * FROM rooms WHERE (series_id = ?1 OR id = ?1) AND expires_at > ?2 ORDER BY round_number DESC LIMIT 1"

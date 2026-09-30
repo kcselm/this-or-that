@@ -80,9 +80,7 @@ export default function NameScreen() {
         </View>
 
         <Text style={styles.heading}>What's your name?</Text>
-        <Text style={styles.subheading}>
-          This is how others will see you in the room
-        </Text>
+        <Text style={styles.subheading}>This is how others will see you in the room</Text>
 
         <TextInput
           style={styles.input}
@@ -104,9 +102,7 @@ export default function NameScreen() {
           onPress={handleContinue}
           disabled={!name.trim() || loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Loading..." : "Continue"}
-          </Text>
+          <Text style={styles.buttonText}>{loading ? "Loading..." : "Continue"}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

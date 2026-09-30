@@ -136,17 +136,13 @@ describe("mlt privacy", () => {
         expect(typeof tally.targetParticipantId).toBe("string");
         expect(tally).not.toHaveProperty("targetVoterId");
       }
-      expect(prompt.winners).toEqual([
-        { participantId: bobParticipantId, name: "Bob" },
-      ]);
+      expect(prompt.winners).toEqual([{ participantId: bobParticipantId, name: "Bob" }]);
     }
 
     const bobEntry = res.body.leaderboard.find((e: any) => e.name === "Bob");
     expect(bobEntry.participantId).toBe(bobParticipantId);
     expect(bobEntry.wins).toBe(3);
-    expect(res.body.leaderboard.find((e: any) => e.name === "Cass").isYou).toBe(
-      true
-    );
+    expect(res.body.leaderboard.find((e: any) => e.name === "Cass").isYou).toBe(true);
     expectNoVoterIds(res.body);
   });
 });

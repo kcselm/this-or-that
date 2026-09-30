@@ -26,13 +26,20 @@ export const bracketMode: ModeHandler = {
   async onStart(db, room) {
     const ids = await shuffledItemIds(db, room.id);
     const now = nowIso();
-    await db.batch(planRound(ids, 1).map((planned) => insertMatchupStatement(db, room.id, 1, planned, now)));
+    await db.batch(
+      planRound(ids, 1).map((planned) => insertMatchupStatement(db, room.id, 1, planned, now))
+    );
   },
 
   progress: bracketProgress,
 
   async results(db, room, voterId) {
-    const { rounds, totalRounds, titleById, matchups } = await bracketRounds(db, room, voterId, () => true);
+    const { rounds, totalRounds, titleById, matchups } = await bracketRounds(
+      db,
+      room,
+      voterId,
+      () => true
+    );
 
     // The champion is the winner of the final round's only matchup. A
     // force-reveal before the final leaves this null.
@@ -109,7 +116,11 @@ export async function bracketRounds(
   const votesByMatchup = new Map<string, VoteBreakdown>();
   for (const v of votes) {
     const list = votesByMatchup.get(v.matchup_id) ?? [];
-    list.push({ voterName: v.voter_name, pickedItemId: v.picked_item_id, isYou: !!voterId && v.voter_id === voterId });
+    list.push({
+      voterName: v.voter_name,
+      pickedItemId: v.picked_item_id,
+      isYou: !!voterId && v.voter_id === voterId,
+    });
     votesByMatchup.set(v.matchup_id, list);
   }
 

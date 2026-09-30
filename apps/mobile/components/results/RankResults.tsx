@@ -85,7 +85,10 @@ function KeepPlaying({ nextRound }: { nextRound: NextRound }) {
       )}
       {isHost && (
         <Pressable
-          style={({ pressed }) => [styles.keepPlayingButton, pressed && resultStyles.homeButtonPressed]}
+          style={({ pressed }) => [
+            styles.keepPlayingButton,
+            pressed && resultStyles.homeButtonPressed,
+          ]}
           onPress={() => setShowPicker(true)}
         >
           <Text style={styles.buttonText}>{nextHost ? "Change next host" : "Keep Playing"}</Text>

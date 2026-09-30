@@ -43,7 +43,12 @@ import ParticipantChips from "../../components/share/ParticipantChips";
 // The host's lobby: share the code, edit the items, watch people join, start.
 export default function ShareScreen() {
   const router = useRouter();
-  const { code, name, mode: modeParam, listId } = useLocalSearchParams<{
+  const {
+    code,
+    name,
+    mode: modeParam,
+    listId,
+  } = useLocalSearchParams<{
     code: string;
     name: string;
     mode?: string;
@@ -105,7 +110,10 @@ export default function ShareScreen() {
       if (plan.toAdd.length === 0) {
         showAlert("Nothing added", skipped ?? "That list is empty.");
       } else if (skipped) {
-        showAlert(`Added ${plan.toAdd.length} from "${list.name.trim() || "Untitled list"}"`, skipped);
+        showAlert(
+          `Added ${plan.toAdd.length} from "${list.name.trim() || "Untitled list"}"`,
+          skipped
+        );
       }
     } catch (e: any) {
       showAlert("Error", e.message);
@@ -193,14 +201,10 @@ export default function ShareScreen() {
       Platform.OS === "web"
         ? window.confirm("This will close the room for everyone. Are you sure?")
         : await new Promise<boolean>((resolve) =>
-            Alert.alert(
-              "Close Room",
-              "This will close the room for everyone. Are you sure?",
-              [
-                { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
-                { text: "Close Room", style: "destructive", onPress: () => resolve(true) },
-              ]
-            )
+            Alert.alert("Close Room", "This will close the room for everyone. Are you sure?", [
+              { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+              { text: "Close Room", style: "destructive", onPress: () => resolve(true) },
+            ])
           );
 
     if (!confirmed) return;

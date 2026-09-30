@@ -1,11 +1,5 @@
 import { useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  type LayoutChangeEvent,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from "react-native";
 import { colors, radius, spacing } from "../lib/theme";
 import type { TierZone } from "../lib/tiers";
 
@@ -53,23 +47,14 @@ export default function TierRow({
   }, [measureNonce]);
 
   return (
-    <Pressable
-      onPress={() => selectable && onPress(zone)}
-      disabled={!selectable}
-    >
+    <Pressable onPress={() => selectable && onPress(zone)} disabled={!selectable}>
       <View
         ref={ref}
         onLayout={handleLayout}
-        style={[
-          styles.row,
-          { backgroundColor: rowBg },
-          highlighted && styles.rowHighlighted,
-        ]}
+        style={[styles.row, { backgroundColor: rowBg }, highlighted && styles.rowHighlighted]}
       >
         <View style={[styles.label, { backgroundColor: labelColor }]}>
-          <Text style={[styles.labelText, { color: labelTextColor }]}>
-            {labelText}
-          </Text>
+          <Text style={[styles.labelText, { color: labelTextColor }]}>{labelText}</Text>
         </View>
         <View style={styles.chips}>{children}</View>
       </View>

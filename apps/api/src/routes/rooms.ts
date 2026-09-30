@@ -1,8 +1,19 @@
 import { MODE_RULES, canStartWithItems, isMode, startItemsMessage } from "@tot/shared";
 import { createRouter } from "../types";
 import { generateCode } from "../lib/codes";
-import { getRoomByCode, getItemsByRoomId, getItemCount, getSeriesHostVoterIds } from "../db/queries";
-import { notFound, notCreator, invalidStatus, validationError, errorResponse } from "../lib/validation";
+import {
+  getRoomByCode,
+  getItemsByRoomId,
+  getItemCount,
+  getSeriesHostVoterIds,
+} from "../db/queries";
+import {
+  notFound,
+  notCreator,
+  invalidStatus,
+  validationError,
+  errorResponse,
+} from "../lib/validation";
 import { countParticipants, isParticipant, isValidName } from "../lib/participants";
 import { nextRoomCodeFor } from "../lib/series";
 import { modeHandler } from "../modes";
@@ -53,7 +64,11 @@ rooms.post("/", async (c) => {
       return errorResponse("SERIES_CONTINUED", "The next round has already been created", 409);
     }
     if (prevRoom.next_host_voter_id !== creatorVoterId) {
-      return errorResponse("NOT_NEXT_HOST", "The host picked someone else to create the next round", 403);
+      return errorResponse(
+        "NOT_NEXT_HOST",
+        "The host picked someone else to create the next round",
+        403
+      );
     }
   }
 
@@ -61,15 +76,15 @@ rooms.post("/", async (c) => {
   let code: string;
   for (let attempts = 0; ; attempts++) {
     if (attempts >= 10) {
-      return Response.json({ error: { code: "INTERNAL_ERROR", message: "Failed to generate unique code" } }, { status: 500 });
+      return Response.json(
+        { error: { code: "INTERNAL_ERROR", message: "Failed to generate unique code" } },
+        { status: 500 }
+      );
     }
     code = generateCode();
     // Check expired rooms too: rooms.code is UNIQUE, and an expired room keeps
     // its code until the cleanup cron deletes it.
-    const existing = await db
-      .prepare("SELECT id FROM rooms WHERE code = ?")
-      .bind(code)
-      .first();
+    const existing = await db.prepare("SELECT id FROM rooms WHERE code = ?").bind(code).first();
     if (!existing) break;
   }
 
@@ -77,14 +92,25 @@ rooms.post("/", async (c) => {
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
-  const seriesId = prevRoom ? prevRoom.series_id ?? prevRoom.id : null;
+  const seriesId = prevRoom ? (prevRoom.series_id ?? prevRoom.id) : null;
   const roundNumber = prevRoom ? prevRoom.round_number + 1 : 1;
 
   await db
     .prepare(
       "INSERT INTO rooms (id, code, topic, creator_voter_id, status, allow_suggestions, mode, created_at, expires_at, series_id, round_number) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)"
     )
-    .bind(id, code!, topic.trim(), creatorVoterId, allowSuggestions, mode, now, expiresAt, seriesId, roundNumber)
+    .bind(
+      id,
+      code!,
+      topic.trim(),
+      creatorVoterId,
+      allowSuggestions,
+      mode,
+      now,
+      expiresAt,
+      seriesId,
+      roundNumber
+    )
     .run();
 
   // Auto-join the creator as a participant
@@ -126,7 +152,8 @@ rooms.post("/:code/items", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
-  if (room.status !== "open") return invalidStatus("Items can only be added while the room is open");
+  if (room.status !== "open")
+    return invalidStatus("Items can only be added while the room is open");
 
   const isCreator = creatorVoterId && creatorVoterId === room.creator_voter_id;
   const rules = MODE_RULES[room.mode];
@@ -174,7 +201,9 @@ rooms.post("/:code/items", async (c) => {
 
   const currentCount = await getItemCount(db, room.id);
   if (currentCount + itemTitles.length > maxItems) {
-    return validationError(`Adding ${itemTitles.length} item(s) would exceed the limit of ${maxItems} (currently ${currentCount})`);
+    return validationError(
+      `Adding ${itemTitles.length} item(s) would exceed the limit of ${maxItems} (currently ${currentCount})`
+    );
   }
 
   const newItems = [];
@@ -184,7 +213,9 @@ rooms.post("/:code/items", async (c) => {
     const addedByVoterId = isCreator ? null : voterId;
     const addedByName = isCreator ? null : voterName.trim();
     await db
-      .prepare("INSERT INTO items (id, room_id, title, sort_order, added_by_voter_id, added_by_name) VALUES (?, ?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO items (id, room_id, title, sort_order, added_by_voter_id, added_by_name) VALUES (?, ?, ?, ?, ?, ?)"
+      )
       .bind(itemId, room.id, itemTitles[i].trim(), sortOrder, addedByVoterId, addedByName)
       .run();
     newItems.push({ id: itemId, title: itemTitles[i].trim(), sortOrder });
@@ -210,7 +241,8 @@ rooms.delete("/:code/items/:itemId", async (c) => {
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
   if (room.creator_voter_id !== creatorVoterId) return notCreator();
-  if (room.status !== "open") return invalidStatus("Items can only be deleted while the room is open");
+  if (room.status !== "open")
+    return invalidStatus("Items can only be deleted while the room is open");
 
   const item = await db
     .prepare("SELECT id FROM items WHERE id = ? AND room_id = ?")
@@ -368,7 +400,9 @@ rooms.get("/:code/participants", async (c) => {
   if (!room) return notFound();
 
   const { results: rows } = await db
-    .prepare("SELECT id, voter_id, voter_name, joined_at FROM participants WHERE room_id = ? ORDER BY joined_at ASC")
+    .prepare(
+      "SELECT id, voter_id, voter_name, joined_at FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+    )
     .bind(room.id)
     .all<{ id: string; voter_id: string; voter_name: string; joined_at: string }>();
 
@@ -399,9 +433,12 @@ rooms.patch("/:code/settings", async (c) => {
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
   if (room.creator_voter_id !== creatorVoterId) return notCreator();
-  if (room.status !== "open") return invalidStatus("Settings can only be changed while the room is open");
+  if (room.status !== "open")
+    return invalidStatus("Settings can only be changed while the room is open");
   if (allowSuggestions && !MODE_RULES[room.mode].suggestions) {
-    return invalidStatus(`Item suggestions are not available in ${MODE_RULES[room.mode].label} rooms`);
+    return invalidStatus(
+      `Item suggestions are not available in ${MODE_RULES[room.mode].label} rooms`
+    );
   }
 
   await db
@@ -431,10 +468,7 @@ rooms.post("/:code/close", async (c) => {
     return invalidStatus("Results are already revealed — closing would hide them");
   }
 
-  await db
-    .prepare("UPDATE rooms SET status = 'closed' WHERE id = ?")
-    .bind(room.id)
-    .run();
+  await db.prepare("UPDATE rooms SET status = 'closed' WHERE id = ?").bind(room.id).run();
 
   return Response.json({ success: true, status: "closed" });
 });

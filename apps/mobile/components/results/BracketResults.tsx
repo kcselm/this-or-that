@@ -6,7 +6,11 @@ import { spacing } from "../../lib/theme";
 import BracketView from "../BracketView";
 import { resultStyles, type ResultsViewProps } from "./styles";
 
-export default function BracketResults({ data, homeLabel, onHome }: ResultsViewProps<BracketResultsData>) {
+export default function BracketResults({
+  data,
+  homeLabel,
+  onHome,
+}: ResultsViewProps<BracketResultsData>) {
   const insets = useSafeAreaInsets();
 
   return (

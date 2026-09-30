@@ -111,7 +111,9 @@ export function useNextRound(code: string, name: string | undefined, active: boo
       if (status.nextRoomCode) {
         const self = partsList.find((p) => p.isYou);
         const selfIsNext = !!(
-          status.nextHost && self && status.nextHost.participantId === self.participantId
+          status.nextHost &&
+          self &&
+          status.nextHost.participantId === self.participantId
         );
         if (selfIsNext) {
           // The new host reaches the new room through the create flow instead.

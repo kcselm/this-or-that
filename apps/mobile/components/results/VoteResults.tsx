@@ -11,7 +11,11 @@ const MEDAL_COLORS = [
   { bg: "#FFF0E8", border: "#D4956A", text: "#B07840" }, // bronze
 ];
 
-export default function VoteResults({ data, homeLabel, onHome }: ResultsViewProps<VoteResultsData>) {
+export default function VoteResults({
+  data,
+  homeLabel,
+  onHome,
+}: ResultsViewProps<VoteResultsData>) {
   const insets = useSafeAreaInsets();
   const winner = data.results[0];
 
@@ -44,8 +48,8 @@ export default function VoteResults({ data, homeLabel, onHome }: ResultsViewProp
             item.yesPercentage >= 70
               ? colors.teal
               : item.yesPercentage >= 40
-              ? colors.amber
-              : colors.coral;
+                ? colors.amber
+                : colors.coral;
 
           return (
             <Animated.View
@@ -85,7 +89,10 @@ export default function VoteResults({ data, homeLabel, onHome }: ResultsViewProp
 
       <Animated.View entering={FadeInDown.duration(400).delay(600)}>
         <Pressable
-          style={({ pressed }) => [resultStyles.homeButton, pressed && resultStyles.homeButtonPressed]}
+          style={({ pressed }) => [
+            resultStyles.homeButton,
+            pressed && resultStyles.homeButtonPressed,
+          ]}
           onPress={onHome}
         >
           <Text style={resultStyles.homeButtonText}>{homeLabel}</Text>

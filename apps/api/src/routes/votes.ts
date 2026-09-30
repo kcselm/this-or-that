@@ -28,7 +28,8 @@ votes.post("/:code/votes", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
-  if (room.status !== "voting") return invalidStatus("Votes can only be submitted while the room is in voting status");
+  if (room.status !== "voting")
+    return invalidStatus("Votes can only be submitted while the room is in voting status");
   const wrongMode = wrongModeError(room, "vote");
   if (wrongMode) return wrongMode;
 
@@ -66,8 +67,5 @@ votes.post("/:code/votes", async (c) => {
     await maybeReveal(db, room);
   }
 
-  return Response.json(
-    { success: true, progress: { voted, total: totalItems } },
-    { status: 201 }
-  );
+  return Response.json({ success: true, progress: { voted, total: totalItems } }, { status: 201 });
 });

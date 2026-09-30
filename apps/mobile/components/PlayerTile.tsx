@@ -1,9 +1,5 @@
 import { Pressable, Text, StyleSheet } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import type { PlayerColor } from "../lib/player-colors";
 import { radius, spacing, typography, shadows } from "../lib/theme";
 
@@ -43,10 +39,7 @@ export default function PlayerTile({ name, color, selected, onPress, disabled }:
       ]}
     >
       <Text
-        style={[
-          styles.name,
-          { color: selected ? color.textOnBase : "#333" },
-        ]}
+        style={[styles.name, { color: selected ? color.textOnBase : "#333" }]}
         numberOfLines={1}
       >
         {name}

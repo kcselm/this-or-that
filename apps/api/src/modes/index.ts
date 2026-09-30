@@ -24,7 +24,9 @@ export function modeHandler(mode: Mode): ModeHandler {
 export function wrongModeError(room: Room, expected: Mode): Response | null {
   if (room.mode === expected) return null;
   const { label } = MODE_RULES[room.mode];
-  return validationError(`This is a ${label} room — use ${MODE_HANDLERS[room.mode].submitPath} instead`);
+  return validationError(
+    `This is a ${label} room — use ${MODE_HANDLERS[room.mode].submitPath} instead`
+  );
 }
 
 /**

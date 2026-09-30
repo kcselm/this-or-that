@@ -69,12 +69,17 @@ export default function ItemEditor({
           {items.length > 0 && (
             <Pressable onPress={onSaveAsList} hitSlop={8} accessibilityRole="button">
               {({ pressed }) => (
-                <Text style={[styles.saveListText, pressed && { opacity: 0.6 }]}>Save to My Lists</Text>
+                <Text style={[styles.saveListText, pressed && { opacity: 0.6 }]}>
+                  Save to My Lists
+                </Text>
               )}
             </Pressable>
           )}
           <View style={styles.countBadge}>
-            <Text style={styles.countText} accessibilityLabel={`${items.length} of ${maxItems} items`}>
+            <Text
+              style={styles.countText}
+              accessibilityLabel={`${items.length} of ${maxItems} items`}
+            >
               {items.length}/{maxItems}
             </Text>
           </View>
@@ -121,7 +126,10 @@ export default function ItemEditor({
               key={l.id}
               disabled={importing}
               onPress={() => onImport(l)}
-              style={({ pressed }) => [styles.listChip, (pressed || importing) && styles.listChipPressed]}
+              style={({ pressed }) => [
+                styles.listChip,
+                (pressed || importing) && styles.listChipPressed,
+              ]}
               accessibilityRole="button"
               accessibilityLabel={`Load list ${l.name.trim() || "Untitled list"}, ${l.items.length} items`}
             >

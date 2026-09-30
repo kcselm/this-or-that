@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, {
-  SlideInRight,
-  SlideOutLeft,
-} from "react-native-reanimated";
+import Animated, { SlideInRight, SlideOutLeft } from "react-native-reanimated";
 import PlayerTile from "../../../components/PlayerTile";
 import {
   getRoom,

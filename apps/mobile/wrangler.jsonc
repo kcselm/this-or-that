@@ -7,6 +7,6 @@
     // Expo exports dynamic routes as literal "[code]" paths, so deep links like
     // /room/ABC123/lobby never match a file. Fall back to index.html and let
     // expo-router resolve the path client-side.
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+  },
 }

@@ -71,7 +71,12 @@ export default function MltResults({ data, homeLabel, onHome }: ResultsViewProps
 
 const styles = StyleSheet.create({
   leaderboardWrap: { padding: spacing.xl, alignItems: "stretch" },
-  title: { ...typography.h1, color: colors.charcoal, textAlign: "center", marginBottom: spacing.lg },
+  title: {
+    ...typography.h1,
+    color: colors.charcoal,
+    textAlign: "center",
+    marginBottom: spacing.lg,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",

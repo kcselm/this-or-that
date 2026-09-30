@@ -49,10 +49,7 @@ const RankCard = forwardRef<RankCardHandle, Props>(function RankCard(
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
   }));
 
   return (

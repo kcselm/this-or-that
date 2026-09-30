@@ -98,14 +98,20 @@ export function addItems(code: string, body: { items: string[]; creatorVoterId: 
   });
 }
 
-export function addItem(code: string, body: { item: string; creatorVoterId?: string; voterId?: string; voterName?: string }) {
+export function addItem(
+  code: string,
+  body: { item: string; creatorVoterId?: string; voterId?: string; voterName?: string }
+) {
   return request<AddItemsResponse>(`/rooms/${code}/items`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateRoomSettings(code: string, body: { creatorVoterId: string; allowSuggestions: boolean }) {
+export function updateRoomSettings(
+  code: string,
+  body: { creatorVoterId: string; allowSuggestions: boolean }
+) {
   return request<{ success: boolean; allowSuggestions: boolean }>(`/rooms/${code}/settings`, {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -127,10 +133,10 @@ export function closeRoom(code: string, creatorVoterId: string) {
 }
 
 export function startVoting(code: string, creatorVoterId: string) {
-  return request<{ success: boolean; status: string; itemCount: number }>(
-    `/rooms/${code}/start`,
-    { method: "POST", body: JSON.stringify({ creatorVoterId }) }
-  );
+  return request<{ success: boolean; status: string; itemCount: number }>(`/rooms/${code}/start`, {
+    method: "POST",
+    body: JSON.stringify({ creatorVoterId }),
+  });
 }
 
 export type RoomItem = {
@@ -337,9 +343,7 @@ export type BracketResponse = {
 };
 
 export function getBracket(code: string, voterId: string) {
-  return request<BracketResponse>(
-    `/rooms/${code}/bracket?voterId=${encodeURIComponent(voterId)}`
-  );
+  return request<BracketResponse>(`/rooms/${code}/bracket?voterId=${encodeURIComponent(voterId)}`);
 }
 
 export type MatchupVoteResponse = {

@@ -8,15 +8,17 @@ import TierBoard from "../TierBoard";
 import { resultStyles, type ResultsViewProps } from "./styles";
 
 // A Consensus board averaged from everyone, plus a tab per player's board.
-export default function TierResults({ data, homeLabel, onHome }: ResultsViewProps<TierResultsData>) {
+export default function TierResults({
+  data,
+  homeLabel,
+  onHome,
+}: ResultsViewProps<TierResultsData>) {
   const insets = useSafeAreaInsets();
   // Tab 0 = Consensus; tabs 1..N = each player's board.
   const [tab, setTab] = useState(0);
 
   // The server pins "You" first when a voterId is sent; keep it stable here too.
-  const players = [...data.players].sort((a, b) =>
-    a.isYou === b.isYou ? 0 : a.isYou ? -1 : 1
-  );
+  const players = [...data.players].sort((a, b) => (a.isYou === b.isYou ? 0 : a.isYou ? -1 : 1));
 
   const tabs = [
     { key: "consensus", label: "Consensus" },
@@ -40,14 +42,22 @@ export default function TierResults({ data, homeLabel, onHome }: ResultsViewProp
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.cream }}
-      contentContainerStyle={{ paddingTop: insets.top + 16, padding: spacing.xl, paddingBottom: spacing.xxl }}
+      contentContainerStyle={{
+        paddingTop: insets.top + 16,
+        padding: spacing.xl,
+        paddingBottom: spacing.xxl,
+      }}
     >
       <Text style={styles.topic}>{data.topic}</Text>
       <Text style={styles.meta}>
         {activePlayer ? `${tabs[tab].label}'s board` : "Averaged from every board"}
       </Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabs}
+      >
         {tabs.map((t, i) => (
           <Pressable
             key={t.key}
@@ -66,7 +76,11 @@ export default function TierResults({ data, homeLabel, onHome }: ResultsViewProp
       </View>
 
       <Pressable
-        style={({ pressed }) => [resultStyles.homeButton, styles.homeButton, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [
+          resultStyles.homeButton,
+          styles.homeButton,
+          pressed && { opacity: 0.85 },
+        ]}
         onPress={onHome}
       >
         <Text style={resultStyles.homeButtonText}>{homeLabel}</Text>

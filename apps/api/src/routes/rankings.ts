@@ -1,10 +1,6 @@
 import { RANK_SLOTS } from "@tot/shared";
 import { createRouter } from "../types";
-import {
-  getRoomByCode,
-  getNextRankItem,
-  getRankingsByRoomAndVoter,
-} from "../db/queries";
+import { getRoomByCode, getNextRankItem, getRankingsByRoomAndVoter } from "../db/queries";
 import { notFound, invalidStatus, validationError } from "../lib/validation";
 import { isParticipant, isValidName } from "../lib/participants";
 import { maybeReveal, wrongModeError } from "../modes";
@@ -106,8 +102,5 @@ rankings.post("/:code/rankings", async (c) => {
     await maybeReveal(db, room);
   }
 
-  return Response.json(
-    { success: true, progress: { placed, total: RANK_SLOTS } },
-    { status: 201 }
-  );
+  return Response.json({ success: true, progress: { placed, total: RANK_SLOTS } }, { status: 201 });
 });

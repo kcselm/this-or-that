@@ -6,11 +6,7 @@ import { Alert, Platform } from "react-native";
  * the screen just freezes. On web, window.alert blocks until dismissed and
  * then the callback runs, matching the native flow closely enough.
  */
-export function showAlert(
-  title: string,
-  message?: string,
-  onDismiss?: () => void
-) {
+export function showAlert(title: string, message?: string, onDismiss?: () => void) {
   if (Platform.OS === "web") {
     window.alert(message ? `${title}\n\n${message}` : title);
     onDismiss?.();

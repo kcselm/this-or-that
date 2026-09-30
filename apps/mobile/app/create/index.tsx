@@ -19,7 +19,12 @@ import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
-  const { mode: modeParam, previousRoomCode, name: nameParam, listId } = useLocalSearchParams<{
+  const {
+    mode: modeParam,
+    previousRoomCode,
+    name: nameParam,
+    listId,
+  } = useLocalSearchParams<{
     mode?: string;
     previousRoomCode?: string;
     name?: string;
@@ -124,9 +129,7 @@ export default function CreateRoomScreen() {
         <View style={styles.toggleRow}>
           <View style={styles.toggleLabel}>
             <Text style={styles.label}>Let others add items</Text>
-            <Text style={styles.toggleHint}>
-              Friends can suggest options after joining
-            </Text>
+            <Text style={styles.toggleHint}>Friends can suggest options after joining</Text>
           </View>
           <Switch
             value={allowSuggestions}
@@ -146,9 +149,7 @@ export default function CreateRoomScreen() {
         onPress={handleCreate}
         disabled={loading}
       >
-        <Text style={styles.buttonText}>
-          {loading ? "Creating..." : "Create Room"}
-        </Text>
+        <Text style={styles.buttonText}>{loading ? "Creating..." : "Create Room"}</Text>
       </Pressable>
     </KeyboardAvoidingView>
   );

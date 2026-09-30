@@ -130,9 +130,7 @@ bracket.post("/:code/matchup-votes", async (c) => {
 
   // Compute progress for this voter in the current round.
   const currentRoundMatchups = await getMatchupsByRoomAndRound(db, room.id, currentRound);
-  const realMatchupIds = new Set(
-    currentRoundMatchups.filter((m) => !m.is_bye).map((m) => m.id)
-  );
+  const realMatchupIds = new Set(currentRoundMatchups.filter((m) => !m.is_bye).map((m) => m.id));
   const myVotes = await getMatchupVotesByVoter(db, room.id, voterId);
   const votedThisRound = myVotes.filter((v) => realMatchupIds.has(v.matchup_id)).length;
 
@@ -192,7 +190,8 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
       .bind(m.id)
       .all<{ picked_item_id: string; c: number }>();
 
-    let aCount = 0, bCount = 0;
+    let aCount = 0,
+      bCount = 0;
     for (const t of tallies.results) {
       if (t.picked_item_id === m.item_a_id) aCount = t.c;
       else if (t.picked_item_id === m.item_b_id) bCount = t.c;

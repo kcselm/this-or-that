@@ -7,7 +7,9 @@ export type ParticipantRow = {
 /** Everyone who has joined the room, in join order. */
 export async function listParticipants(db: D1Database, roomId: string): Promise<ParticipantRow[]> {
   const { results } = await db
-    .prepare("SELECT id, voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC")
+    .prepare(
+      "SELECT id, voter_id, voter_name FROM participants WHERE room_id = ? ORDER BY joined_at ASC"
+    )
     .bind(roomId)
     .all<ParticipantRow>();
   return results;
@@ -21,7 +23,11 @@ export async function countParticipants(db: D1Database, roomId: string): Promise
   return row?.count ?? 0;
 }
 
-export async function isParticipant(db: D1Database, roomId: string, voterId: string): Promise<boolean> {
+export async function isParticipant(
+  db: D1Database,
+  roomId: string,
+  voterId: string
+): Promise<boolean> {
   const row = await db
     .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
     .bind(roomId, voterId)

@@ -50,7 +50,8 @@ export function playScreen(mode: Mode): PlayScreen {
   return PLAY_SCREENS[mode];
 }
 
-export type RoomScreen = "/create/share" | "/room/[code]/lobby" | PlayScreen | "/room/[code]/results";
+export type RoomScreen =
+  "/create/share" | "/room/[code]/lobby" | PlayScreen | "/room/[code]/results";
 
 /**
  * Where someone belongs in a room right now: the host's setup screen or the

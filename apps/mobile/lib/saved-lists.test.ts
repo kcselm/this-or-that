@@ -57,6 +57,8 @@ describe("describeSkipped", () => {
   });
 
   it("names both reasons", () => {
-    expect(describeSkipped(1, 3, 12)).toBe("Skipped 1 already in the room and 3 over the 12-item limit.");
+    expect(describeSkipped(1, 3, 12)).toBe(
+      "Skipped 1 already in the room and 3 over the 12-item limit."
+    );
   });
 });

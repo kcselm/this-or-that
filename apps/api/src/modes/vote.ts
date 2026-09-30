@@ -7,8 +7,7 @@ export const voteMode: ModeHandler = {
   submitPath: "/votes",
 
   // Participants see the list while it's open only if they can suggest items.
-  showItems: (room, isCreator) =>
-    room.status !== "open" || isCreator || !!room.allow_suggestions,
+  showItems: (room, isCreator) => room.status !== "open" || isCreator || !!room.allow_suggestions,
 
   async myState(db, room, voterId) {
     const votes = await getVotesByRoomAndVoter(db, room.id, voterId);

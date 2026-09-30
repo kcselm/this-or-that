@@ -120,7 +120,8 @@ function buildRounds(rounds: BracketRound[]): RoundModel[] {
         .sort((a, b) => a.slot - b.slot)
         .map((m) => {
           const a: Competitor = { id: m.itemA?.id ?? null, title: m.itemA?.title ?? null };
-          const b: Competitor | null = m.isBye || !m.itemB ? null : { id: m.itemB.id, title: m.itemB.title };
+          const b: Competitor | null =
+            m.isBye || !m.itemB ? null : { id: m.itemB.id, title: m.itemB.title };
           return {
             round: r.round,
             slot: m.slot,
@@ -138,7 +139,10 @@ function buildRounds(rounds: BracketRound[]): RoundModel[] {
   let last = models[models.length - 1];
   while (last && last.slots.length > 1) {
     const round = last.round + 1;
-    const plan = planRound(last.slots.map((_, i) => i), round);
+    const plan = planRound(
+      last.slots.map((_, i) => i),
+      round
+    );
     const slots: Slot[] = plan.map((p) => ({
       round,
       slot: p.slot,
@@ -382,7 +386,13 @@ function layoutLinear(models: RoundModel[], width: number, highlightRound?: numb
   const colX = (i: number) => i * (colW + gap);
 
   const rules: RuleMap = new Map();
-  const stackHeight = assignRules(models, R - 1, (i) => [0, models[i].slots.length], metrics.lineHeight, rules);
+  const stackHeight = assignRules(
+    models,
+    R - 1,
+    (i) => [0, models[i].slots.length],
+    metrics.lineHeight,
+    rules
+  );
   const yOffset = HEADER_H;
 
   const out: Emit = { lines: [], segments: [], markers: [] };
@@ -398,7 +408,20 @@ function layoutLinear(models: RoundModel[], width: number, highlightRound?: numb
     });
     const link = i === R - 1 && !withWinner ? "join" : "full";
     for (const slot of models[i].slots) {
-      emitSlot(out, slot, i, rules, yOffset, colX(i), colW, gap, 1, link, metrics.lineHeight, highlightRound);
+      emitSlot(
+        out,
+        slot,
+        i,
+        rules,
+        yOffset,
+        colX(i),
+        colW,
+        gap,
+        1,
+        link,
+        metrics.lineHeight,
+        highlightRound
+      );
     }
   }
 
@@ -448,7 +471,11 @@ function championOf(final: Slot): Competitor {
   return final.competitors.find((c) => c.id === final.winnerId) ?? EMPTY;
 }
 
-function layoutMirrored(models: RoundModel[], width: number, highlightRound?: number): BracketLayout {
+function layoutMirrored(
+  models: RoundModel[],
+  width: number,
+  highlightRound?: number
+): BracketLayout {
   const R = models.length;
   const gap = WIDE_GAP;
   const columns = 2 * R + 1;
@@ -466,7 +493,13 @@ function layoutMirrored(models: RoundModel[], width: number, highlightRound?: nu
   const leftRules: RuleMap = new Map();
   const rightRules: RuleMap = new Map();
   const leftH = assignRules(models, semi, (i) => [0, left[i]], metrics.lineHeight, leftRules);
-  const rightH = assignRules(models, semi, (i) => [left[i], models[i].slots.length], metrics.lineHeight, rightRules);
+  const rightH = assignRules(
+    models,
+    semi,
+    (i) => [left[i], models[i].slots.length],
+    metrics.lineHeight,
+    rightRules
+  );
   const stackHeight = Math.max(leftH, rightH);
   const leftOffset = HEADER_H + (stackHeight - leftH) / 2;
   const rightOffset = HEADER_H + (stackHeight - rightH) / 2;
@@ -478,7 +511,20 @@ function layoutMirrored(models: RoundModel[], width: number, highlightRound?: nu
     const highlighted = models[i].round === highlightRound;
     cols.push({ key: `L${i}`, x: leftX(i), width: colW, label: roundLabel(i, R), highlighted });
     for (let s = 0; s < left[i]; s++) {
-      emitSlot(out, models[i].slots[s], i, leftRules, leftOffset, leftX(i), colW, gap, 1, "full", metrics.lineHeight, highlightRound);
+      emitSlot(
+        out,
+        models[i].slots[s],
+        i,
+        leftRules,
+        leftOffset,
+        leftX(i),
+        colW,
+        gap,
+        1,
+        "full",
+        metrics.lineHeight,
+        highlightRound
+      );
     }
   }
 
@@ -490,9 +536,21 @@ function layoutMirrored(models: RoundModel[], width: number, highlightRound?: nu
     slotCenter(rightRules, semi, models[semi].slots[1]) + rightOffset,
   ];
   const finalistX = [leftX(R - 1), rightX(R - 1)];
-  cols.push({ key: `L${R - 1}`, x: finalistX[0], width: colW, label: "FINAL", highlighted: finalHighlighted });
+  cols.push({
+    key: `L${R - 1}`,
+    x: finalistX[0],
+    width: colW,
+    label: "FINAL",
+    highlighted: finalHighlighted,
+  });
   cols.push({ key: "C", x: centerX, width: colW, label: "CHAMPION", highlighted: false });
-  cols.push({ key: `R${R - 1}`, x: finalistX[1], width: colW, label: "FINAL", highlighted: finalHighlighted });
+  cols.push({
+    key: `R${R - 1}`,
+    x: finalistX[1],
+    width: colW,
+    label: "FINAL",
+    highlighted: finalHighlighted,
+  });
 
   const championY = (finalistY[0] + finalistY[1]) / 2;
   final.competitors.forEach((comp, c) => {
@@ -554,7 +612,20 @@ function layoutMirrored(models: RoundModel[], width: number, highlightRound?: nu
     const highlighted = models[i].round === highlightRound;
     cols.push({ key: `R${i}`, x: rightX(i), width: colW, label: roundLabel(i, R), highlighted });
     for (let s = left[i]; s < models[i].slots.length; s++) {
-      emitSlot(out, models[i].slots[s], i, rightRules, rightOffset, rightX(i), colW, gap, -1, "full", metrics.lineHeight, highlightRound);
+      emitSlot(
+        out,
+        models[i].slots[s],
+        i,
+        rightRules,
+        rightOffset,
+        rightX(i),
+        colW,
+        gap,
+        -1,
+        "full",
+        metrics.lineHeight,
+        highlightRound
+      );
     }
   }
 

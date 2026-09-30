@@ -91,9 +91,7 @@ export async function saveTierDraft(
   await AsyncStorage.setItem(tierDraftKey(code), json);
 }
 
-export async function getTierDraft(
-  code: string
-): Promise<Record<string, string> | null> {
+export async function getTierDraft(code: string): Promise<Record<string, string> | null> {
   let json: string | null;
   if (Platform.OS === "web") {
     json = sessionStorage.getItem(tierDraftKey(code));
@@ -121,8 +119,7 @@ export async function clearTierDraft(code: string): Promise<void> {
 // whole point is that they outlive the tab.
 
 async function readLocalArray<T>(key: string): Promise<T[]> {
-  const json =
-    Platform.OS === "web" ? localStorage.getItem(key) : await AsyncStorage.getItem(key);
+  const json = Platform.OS === "web" ? localStorage.getItem(key) : await AsyncStorage.getItem(key);
   if (!json) return [];
   try {
     const parsed = JSON.parse(json);
@@ -188,9 +185,7 @@ export async function updateSavedList(
   changes: Partial<Pick<SavedList, "name" | "items">>
 ): Promise<void> {
   await mutateSavedLists((lists) =>
-    lists.map((l) =>
-      l.id === id ? { ...l, ...changes, updatedAt: new Date().toISOString() } : l
-    )
+    lists.map((l) => (l.id === id ? { ...l, ...changes, updatedAt: new Date().toISOString() } : l))
   );
 }
 

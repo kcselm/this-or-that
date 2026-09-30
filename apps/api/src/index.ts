@@ -30,10 +30,7 @@ app.onError((err, c) => {
     );
   }
   console.error(err);
-  return c.json(
-    { error: { code: "INTERNAL_ERROR", message: "Something went wrong" } },
-    500
-  );
+  return c.json({ error: { code: "INTERNAL_ERROR", message: "Something went wrong" } }, 500);
 });
 
 app.route("/api/rooms", rooms);

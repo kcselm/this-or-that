@@ -140,9 +140,7 @@ export default function SwipeScreen() {
       {/* Progress bar */}
       <View style={styles.progressSection}>
         <View style={styles.progressBar}>
-          <Animated.View
-            style={[styles.progressFill, { width: `${progress}%` }]}
-          />
+          <Animated.View style={[styles.progressFill, { width: `${progress}%` }]} />
         </View>
         <Text style={styles.progressText}>
           {currentIndex + 1} of {items.length}

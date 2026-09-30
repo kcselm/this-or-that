@@ -71,9 +71,7 @@ export default function MltRevealCard({
             <Text style={styles.noVotes}>No votes cast</Text>
           ) : (
             <>
-              <Text style={styles.crown}>
-                {winners.length > 1 ? "👑 Tied" : "👑"}
-              </Text>
+              <Text style={styles.crown}>{winners.length > 1 ? "👑 Tied" : "👑"}</Text>
               <Text style={styles.winnerName}>{winnerNames}</Text>
               <Text style={styles.winnerVotes}>
                 {winnerCount} {winnerCount === 1 ? "vote" : "votes"}
@@ -99,7 +97,12 @@ export default function MltRevealCard({
 
 const styles = StyleSheet.create({
   wrapper: { padding: spacing.xl, alignItems: "stretch" },
-  progress: { ...typography.body, color: colors.slate, textAlign: "center", marginBottom: spacing.sm },
+  progress: {
+    ...typography.body,
+    color: colors.slate,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
   promptText: {
     ...typography.h2,
     color: colors.charcoal,

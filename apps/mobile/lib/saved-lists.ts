@@ -89,7 +89,11 @@ export function planImport(
 }
 
 /** One-line summary of what an import skipped, or null if nothing was. */
-export function describeSkipped(duplicates: number, overflow: number, maxItems: number): string | null {
+export function describeSkipped(
+  duplicates: number,
+  overflow: number,
+  maxItems: number
+): string | null {
   const parts: string[] = [];
   if (duplicates > 0) {
     parts.push(`${duplicates} already in the room`);

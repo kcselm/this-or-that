@@ -26,7 +26,9 @@ describe("modes", () => {
 
   it("words the start message for exact and ranged counts", () => {
     expect(startItemsMessage("rank")).toBe("Blind rank rooms need exactly 5 items to start");
-    expect(startItemsMessage("mlt")).toBe("Most Likely To rooms need between 3 and 15 prompts to start");
+    expect(startItemsMessage("mlt")).toBe(
+      "Most Likely To rooms need between 3 and 15 prompts to start"
+    );
   });
 });
 

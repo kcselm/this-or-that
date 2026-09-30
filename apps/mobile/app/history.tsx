@@ -63,8 +63,8 @@ export default function PastResultsScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.intro}>
-        Results from games you've finished stay on this device for {RESULTS_RETENTION_DAYS}{" "}
-        days, even after the room is gone.
+        Results from games you've finished stay on this device for {RESULTS_RETENTION_DAYS} days,
+        even after the room is gone.
       </Text>
 
       <FlatList

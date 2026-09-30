@@ -36,7 +36,11 @@ export default function RoomCodeCard({ code }: { code: string }) {
           <Text style={styles.actionText}>{copied ? "Copied!" : "Copy"}</Text>
         </Pressable>
         <Pressable
-          style={({ pressed }) => [styles.actionButton, styles.shareButton, pressed && styles.shareButtonPressed]}
+          style={({ pressed }) => [
+            styles.actionButton,
+            styles.shareButton,
+            pressed && styles.shareButtonPressed,
+          ]}
           onPress={handleShare}
           accessibilityRole="button"
           accessibilityLabel="Share room code"

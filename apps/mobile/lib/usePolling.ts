@@ -8,10 +8,7 @@ import { AppState } from "react-native";
  * permanently ends the loop — call it after navigating away or when the
  * room is gone, so a foreground event can't restart polling.
  */
-export function usePolling(
-  poll: (stop: () => void) => void | Promise<void>,
-  intervalMs: number
-) {
+export function usePolling(poll: (stop: () => void) => void | Promise<void>, intervalMs: number) {
   // Latest-ref pattern: ticks always call the newest closure, so the
   // effect never needs to re-run (and reset the interval) on state changes.
   const pollRef = useRef(poll);

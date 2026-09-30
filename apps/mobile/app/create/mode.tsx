@@ -9,16 +9,18 @@ export default function ModePickerScreen() {
   const { listId } = useLocalSearchParams<{ listId?: string }>();
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-    >
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>Pick a game mode</Text>
 
       <Animated.View entering={FadeInDown.duration(400).delay(100).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "vote", ...(listId ? { listId } : {}) } })}
+          onPress={() =>
+            router.push({
+              pathname: "/create",
+              params: { mode: "vote", ...(listId ? { listId } : {}) },
+            })
+          }
         >
           <Text style={styles.cardEmoji}>♥</Text>
           <Text style={styles.cardTitle}>Swipe Vote</Text>
@@ -31,7 +33,12 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(200).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardRank, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "rank", ...(listId ? { listId } : {}) } })}
+          onPress={() =>
+            router.push({
+              pathname: "/create",
+              params: { mode: "rank", ...(listId ? { listId } : {}) },
+            })
+          }
         >
           <Text style={styles.cardEmoji}>◎</Text>
           <Text style={styles.cardTitle}>Blind Rank</Text>
@@ -44,12 +51,18 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(300).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardBracket, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "bracket", ...(listId ? { listId } : {}) } })}
+          onPress={() =>
+            router.push({
+              pathname: "/create",
+              params: { mode: "bracket", ...(listId ? { listId } : {}) },
+            })
+          }
         >
           <Text style={styles.cardEmoji}>⚔</Text>
           <Text style={styles.cardTitle}>Bracket</Text>
           <Text style={styles.cardDescription}>
-            Items face off in a tournament. Each round, everyone votes on the matchups. See the bracket grow.
+            Items face off in a tournament. Each round, everyone votes on the matchups. See the
+            bracket grow.
           </Text>
         </Pressable>
       </Animated.View>
@@ -57,13 +70,18 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(400).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardMlt, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "mlt", ...(listId ? { listId } : {}) } })}
+          onPress={() =>
+            router.push({
+              pathname: "/create",
+              params: { mode: "mlt", ...(listId ? { listId } : {}) },
+            })
+          }
         >
           <Text style={styles.cardEmoji}>★</Text>
           <Text style={styles.cardTitle}>Most Likely To</Text>
           <Text style={styles.cardDescription}>
-            Pick prompts like "most likely to ghost the group chat." For each one, vote on
-            the person in the room who fits it best.
+            Pick prompts like "most likely to ghost the group chat." For each one, vote on the
+            person in the room who fits it best.
           </Text>
         </Pressable>
       </Animated.View>
@@ -71,12 +89,18 @@ export default function ModePickerScreen() {
       <Animated.View entering={FadeInDown.duration(400).delay(500).springify()}>
         <Pressable
           style={({ pressed }) => [styles.card, styles.cardTier, pressed && styles.cardPressed]}
-          onPress={() => router.push({ pathname: "/create", params: { mode: "tier", ...(listId ? { listId } : {}) } })}
+          onPress={() =>
+            router.push({
+              pathname: "/create",
+              params: { mode: "tier", ...(listId ? { listId } : {}) },
+            })
+          }
         >
           <Text style={styles.cardEmoji}>▦</Text>
           <Text style={styles.cardTitle}>Tier List</Text>
           <Text style={styles.cardDescription}>
-            Add items, then everyone drags them into S/A/B/C/D. We average the tiers into one shared board.
+            Add items, then everyone drags them into S/A/B/C/D. We average the tiers into one shared
+            board.
           </Text>
         </Pressable>
       </Animated.View>

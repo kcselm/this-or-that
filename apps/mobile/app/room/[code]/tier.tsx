@@ -1,24 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "react-native";
 import { showAlert } from "../../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TierChip from "../../../components/TierChip";
 import TierRow, { type ZoneRect } from "../../../components/TierRow";
 import { getRoom, submitTierBoard, ApiError, type RoomItem } from "../../../lib/api";
-import {
-  getVoterId,
-  saveTierDraft,
-  getTierDraft,
-  clearTierDraft,
-} from "../../../lib/storage";
+import { getVoterId, saveTierDraft, getTierDraft, clearTierDraft } from "../../../lib/storage";
 import { seededShuffle } from "../../../lib/shuffle";
 import { TIERS, TIER_META, type TierZone } from "../../../lib/tiers";
 import { colors, spacing, typography, radius } from "../../../lib/theme";
@@ -82,10 +70,7 @@ export default function TierScreen() {
       const initial: Record<string, TierZone> = {};
       for (const it of room.items) {
         const d = draft?.[it.id];
-        initial[it.id] =
-          d === "S" || d === "A" || d === "B" || d === "C" || d === "D"
-            ? d
-            : "pool";
+        initial[it.id] = d === "S" || d === "A" || d === "B" || d === "C" || d === "D" ? d : "pool";
       }
       setPlacement(initial);
     } catch (e: any) {
@@ -212,8 +197,12 @@ export default function TierScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
-        <Text style={styles.topic} numberOfLines={1}>{topic}</Text>
-        <Text style={styles.progress}>{placedCount} of {items.length}</Text>
+        <Text style={styles.topic} numberOfLines={1}>
+          {topic}
+        </Text>
+        <Text style={styles.progress}>
+          {placedCount} of {items.length}
+        </Text>
       </View>
 
       <ScrollView
@@ -262,9 +251,7 @@ export default function TierScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {selectedId && (
-          <Text style={styles.hint}>Tap a tier to place the selected item</Text>
-        )}
+        {selectedId && <Text style={styles.hint}>Tap a tier to place the selected item</Text>}
         <Pressable
           style={({ pressed }) => [
             styles.lockButton,
@@ -275,7 +262,11 @@ export default function TierScreen() {
           disabled={!allPlaced || submitting}
         >
           <Text style={styles.lockButtonText}>
-            {submitting ? "Locking in..." : allPlaced ? "Lock in my board" : `Place all ${items.length} items`}
+            {submitting
+              ? "Locking in..."
+              : allPlaced
+                ? "Lock in my board"
+                : `Place all ${items.length} items`}
           </Text>
         </Pressable>
       </View>

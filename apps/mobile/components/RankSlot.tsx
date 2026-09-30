@@ -30,19 +30,12 @@ export default function RankSlot({ rank, filledTitle, highlighted, onMeasure }: 
     <View
       ref={ref}
       onLayout={handleLayout}
-      style={[
-        styles.slot,
-        filled && styles.slotFilled,
-        highlighted && styles.slotHighlighted,
-      ]}
+      style={[styles.slot, filled && styles.slotFilled, highlighted && styles.slotHighlighted]}
     >
       <View style={[styles.rankBadge, filled && styles.rankBadgeFilled]}>
         <Text style={[styles.rankNumber, filled && styles.rankNumberFilled]}>{rank}</Text>
       </View>
-      <Text
-        style={[styles.slotText, filled && styles.slotTextFilled]}
-        numberOfLines={1}
-      >
+      <Text style={[styles.slotText, filled && styles.slotTextFilled]} numberOfLines={1}>
         {filledTitle ?? "—"}
       </Text>
     </View>

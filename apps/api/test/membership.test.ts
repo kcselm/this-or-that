@@ -34,9 +34,7 @@ describe("vote membership", () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
 
-    const count = await env.DB.prepare(
-      "SELECT COUNT(*) as c FROM votes WHERE room_id = ?"
-    )
+    const count = await env.DB.prepare("SELECT COUNT(*) as c FROM votes WHERE room_id = ?")
       .bind(roomId)
       .first<{ c: number }>();
     expect(count?.c).toBe(0);
@@ -81,9 +79,7 @@ describe("rank membership", () => {
   it("rejects rankings from voters who never joined the room", async () => {
     const { code, roomId } = await startedRankRoom();
 
-    const item = await env.DB.prepare(
-      "SELECT id FROM items WHERE room_id = ? LIMIT 1"
-    )
+    const item = await env.DB.prepare("SELECT id FROM items WHERE room_id = ? LIMIT 1")
       .bind(roomId)
       .first<{ id: string }>();
 

@@ -58,7 +58,11 @@ export const tierMode: ModeHandler = {
         isYou: !!voterId && p.voter_id === voterId,
         placements: placements
           .filter((pl) => pl.voter_id === p.voter_id)
-          .map((pl) => ({ itemId: pl.item_id, title: titleById.get(pl.item_id) ?? "", tier: pl.tier as Tier }))
+          .map((pl) => ({
+            itemId: pl.item_id,
+            title: titleById.get(pl.item_id) ?? "",
+            tier: pl.tier as Tier,
+          }))
           .sort(byHostOrder),
       }))
       // Boards are submitted whole, so anyone with placements has a full board.

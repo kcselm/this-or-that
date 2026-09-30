@@ -92,8 +92,5 @@ mlt.post("/:code/mlt-votes", async (c) => {
     await maybeReveal(db, room);
   }
 
-  return Response.json(
-    { success: true, progress: { voted, total: totalItems } },
-    { status: 201 }
-  );
+  return Response.json({ success: true, progress: { voted, total: totalItems } }, { status: 201 });
 });

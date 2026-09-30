@@ -11,12 +11,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, Layout } from "react-native-reanimated";
-import {
-  getMltPrompts,
-  addItems,
-  ApiError,
-  type MltPrompt,
-} from "../../lib/api";
+import { getMltPrompts, addItems, ApiError, type MltPrompt } from "../../lib/api";
 import { getVoterId } from "../../lib/storage";
 import { showAlert } from "../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
@@ -60,8 +55,7 @@ export default function MltPromptsScreen() {
     loadLibrary();
   }, [loadLibrary]);
 
-  const isSelected = (libraryId: string) =>
-    selected.some((s) => s.libraryId === libraryId);
+  const isSelected = (libraryId: string) => selected.some((s) => s.libraryId === libraryId);
 
   const togglePrompt = (prompt: MltPrompt) => {
     setSelected((prev) => {
@@ -107,10 +101,7 @@ export default function MltPromptsScreen() {
       });
       router.replace({ pathname: "/create/share", params: { code, name, mode } });
     } catch (e) {
-      showAlert(
-        "Couldn't save prompts",
-        e instanceof ApiError ? e.message : "Try again."
-      );
+      showAlert("Couldn't save prompts", e instanceof ApiError ? e.message : "Try again.");
     } finally {
       setSaving(false);
     }
@@ -140,10 +131,7 @@ export default function MltPromptsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>Pick your prompts</Text>
         <Text style={styles.subhead}>
           {selected.length} of {MAX_PROMPTS} selected
@@ -186,9 +174,7 @@ export default function MltPromptsScreen() {
               style={[styles.libraryCard, sel && styles.libraryCardSelected]}
               disabled={!sel && selected.length >= MAX_PROMPTS}
             >
-              <Text style={[styles.libraryText, sel && styles.libraryTextSelected]}>
-                {p.text}
-              </Text>
+              <Text style={[styles.libraryText, sel && styles.libraryTextSelected]}>{p.text}</Text>
               <Text style={styles.libraryAddIcon}>{sel ? "✓" : "+"}</Text>
             </Pressable>
           );
@@ -222,10 +208,7 @@ export default function MltPromptsScreen() {
       {/* Sticky bottom continue */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Pressable
-          style={[
-            styles.continueBtn,
-            (selected.length < 3 || saving) && styles.disabled,
-          ]}
+          style={[styles.continueBtn, (selected.length < 3 || saving) && styles.disabled]}
           disabled={selected.length < 3 || saving}
           onPress={handleContinue}
         >

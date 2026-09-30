@@ -64,7 +64,11 @@ export const mltMode: ModeHandler = {
         itemId: item.id,
         text: item.title,
         sortOrder: item.sort_order,
-        tallies: tallies.map(({ targetParticipantId, name, count }) => ({ targetParticipantId, name, count })),
+        tallies: tallies.map(({ targetParticipantId, name, count }) => ({
+          targetParticipantId,
+          name,
+          count,
+        })),
         winners: winners.map((w) => ({ participantId: w.targetParticipantId, name: w.name })),
         totalVotes: tallies.reduce((sum, t) => sum + t.count, 0),
       };
