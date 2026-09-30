@@ -23,6 +23,8 @@ export type ModeHandler = {
   submitPath: string;
   /** Whether GET /rooms/:code includes the item list for this viewer. */
   showItems(room: Room, isCreator: boolean): boolean;
+  /** Mode-specific settings, added to GET /rooms/:code and echoed by PATCH /settings. */
+  roomSettings?(room: Room): Json;
   /** Set the room up for play, right after it flips from open to voting. */
   onStart?(db: D1Database, room: Room): Promise<void>;
   /** The viewer's own submissions, added to GET /rooms/:code so they can resume. */

@@ -24,6 +24,8 @@ const CHILD_TABLES = [
   "matchup_votes",
   "mlt_votes",
   "tier_placements",
+  "draft_seats",
+  "draft_picks",
 ];
 
 async function expire(roomId: string, msAgo = 60_000) {

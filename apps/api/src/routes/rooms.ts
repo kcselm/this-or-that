@@ -1,7 +1,11 @@
 import {
+  DRAFT_ORDERS,
+  DRAFT_ROUNDS,
   MODES,
   MODE_RULES,
   canStartWithItems,
+  isDraftOrder,
+  isDraftRounds,
   isMode,
   roomsLabel,
   startItemsMessage,
@@ -13,6 +17,7 @@ import {
   getItemsByRoomId,
   getItemCount,
   getSeriesHostVoterIds,
+  type Room,
 } from "../db/queries";
 import {
   notFound,
@@ -26,6 +31,9 @@ import { nextRoomCodeFor } from "../lib/series";
 import { modeHandler } from "../modes";
 
 export const rooms = createRouter();
+
+const DRAFT_ORDER_MESSAGE = `draftOrder must be one of: ${DRAFT_ORDERS.join(", ")}`;
+const DRAFT_ROUNDS_MESSAGE = `draftRounds must be a whole number from ${DRAFT_ROUNDS.min} to ${DRAFT_ROUNDS.max}`;
 
 // POST /api/rooms — Create a new room
 rooms.post("/", async (c) => {
@@ -44,6 +52,15 @@ rooms.post("/", async (c) => {
   const mode = body.mode ?? "vote";
   if (!isMode(mode)) {
     return validationError(`mode must be one of: ${MODES.join(", ")}`);
+  }
+  // Draft settings only mean something in a draft room; elsewhere they're ignored and stored NULL.
+  let draftOrder: string | null = null;
+  let draftRounds: number | null = null;
+  if (mode === "draft") {
+    draftOrder = body.draftOrder ?? "snake";
+    draftRounds = body.draftRounds ?? DRAFT_ROUNDS.default;
+    if (!isDraftOrder(draftOrder)) return validationError(DRAFT_ORDER_MESSAGE);
+    if (!isDraftRounds(draftRounds)) return validationError(DRAFT_ROUNDS_MESSAGE);
   }
 
   const db = c.env.DB;
@@ -104,7 +121,7 @@ rooms.post("/", async (c) => {
 
   await db
     .prepare(
-      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, allow_suggestions, mode, created_at, expires_at, series_id, round_number) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO rooms (id, code, topic, creator_voter_id, status, allow_suggestions, mode, created_at, expires_at, series_id, round_number, draft_order, draft_rounds) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       id,
@@ -116,7 +133,9 @@ rooms.post("/", async (c) => {
       now,
       expiresAt,
       seriesId,
-      roundNumber
+      roundNumber,
+      draftOrder,
+      draftRounds
     )
     .run();
 
@@ -336,6 +355,7 @@ rooms.get("/:code", async (c) => {
     allowSuggestions: !!room.allow_suggestions,
     mode: room.mode,
     items,
+    ...handler.roomSettings?.(room),
   };
 
   // The viewer's own submissions so far, so a reopened app can resume.
@@ -371,6 +391,25 @@ rooms.post("/:code/join", async (c) => {
   }
   if (room.status === "revealed") {
     return invalidStatus("Voting has already ended for this room");
+  }
+
+  const rules = MODE_RULES[room.mode];
+  if (!rules.joinAfterStart && !(await isParticipant(db, room.id, voterId))) {
+    // A new player can only be seated before the start draws the turn order.
+    // The status check is part of the INSERT so a join racing the start can't
+    // land after the draw and leave a participant with no seat.
+    const added = await db
+      .prepare(
+        `INSERT INTO participants (id, room_id, voter_id, voter_name)
+         SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM rooms WHERE id = ? AND status = 'open')
+         ON CONFLICT(room_id, voter_id) DO UPDATE SET voter_name = excluded.voter_name`
+      )
+      .bind(crypto.randomUUID(), room.id, voterId, voterName.trim(), room.id)
+      .run();
+    if ((added.meta.changes ?? 0) === 0) {
+      return invalidStatus(`The ${rules.label} has already started`);
+    }
+    return Response.json({ success: true });
   }
 
   // Atomic upsert: rejoining renames you. A SELECT-then-INSERT let a double
@@ -419,13 +458,22 @@ rooms.get("/:code/participants", async (c) => {
 rooms.patch("/:code/settings", async (c) => {
   const code = c.req.param("code").toUpperCase();
   const body = await c.req.json();
-  const { creatorVoterId, allowSuggestions } = body;
+  const { creatorVoterId, allowSuggestions, draftOrder, draftRounds } = body;
 
   if (!creatorVoterId || typeof creatorVoterId !== "string") {
     return validationError("Creator voter ID is required");
   }
-  if (typeof allowSuggestions !== "boolean") {
+  if (allowSuggestions === undefined && draftOrder === undefined && draftRounds === undefined) {
+    return validationError("Provide allowSuggestions, draftOrder or draftRounds to change");
+  }
+  if (allowSuggestions !== undefined && typeof allowSuggestions !== "boolean") {
     return validationError("allowSuggestions must be a boolean");
+  }
+  if (draftOrder !== undefined && !isDraftOrder(draftOrder)) {
+    return validationError(DRAFT_ORDER_MESSAGE);
+  }
+  if (draftRounds !== undefined && !isDraftRounds(draftRounds)) {
+    return validationError(DRAFT_ROUNDS_MESSAGE);
   }
 
   const db = c.env.DB;
@@ -440,12 +488,40 @@ rooms.patch("/:code/settings", async (c) => {
     );
   }
 
-  await db
-    .prepare("UPDATE rooms SET allow_suggestions = ? WHERE id = ?")
-    .bind(allowSuggestions ? 1 : 0, room.id)
-    .run();
+  const changingDraft = draftOrder !== undefined || draftRounds !== undefined;
+  if (changingDraft && room.mode !== "draft") {
+    return invalidStatus(
+      `Draft settings are not available in ${MODE_RULES[room.mode].label} rooms`
+    );
+  }
 
-  return Response.json({ success: true, allowSuggestions });
+  // Only the fields sent change (COALESCE keeps the rest), so two quick
+  // PATCHes for different settings can't overwrite each other. Conditional on
+  // 'open': a draft's pick count is fixed once it starts, so a PATCH racing
+  // the start must not change it underneath the players.
+  const saved = await db
+    .prepare(
+      `UPDATE rooms SET
+         allow_suggestions = COALESCE(?, allow_suggestions),
+         draft_order = COALESCE(?, draft_order),
+         draft_rounds = COALESCE(?, draft_rounds)
+       WHERE id = ? AND status = 'open'
+       RETURNING *`
+    )
+    .bind(
+      allowSuggestions === undefined ? null : allowSuggestions ? 1 : 0,
+      draftOrder ?? null,
+      draftRounds ?? null,
+      room.id
+    )
+    .first<Room>();
+  if (!saved) return invalidStatus("Settings can only be changed while the room is open");
+
+  return Response.json({
+    success: true,
+    allowSuggestions: !!saved.allow_suggestions,
+    ...modeHandler(saved.mode).roomSettings?.(saved),
+  });
 });
 
 // POST /api/rooms/:code/close — Close a room (creator only)

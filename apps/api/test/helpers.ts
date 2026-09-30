@@ -1,4 +1,5 @@
 import { exports } from "cloudflare:workers";
+import type { DraftOrder, Mode } from "@tot/shared";
 import { expect } from "vitest";
 
 // Every fake credential carries this prefix so a single substring check can
@@ -28,8 +29,8 @@ export function expectNoVoterIds(payload: unknown) {
 }
 
 export async function createRoom(
-  mode: "vote" | "rank" | "bracket" | "mlt" | "tier",
-  opts: { allowSuggestions?: boolean } = {}
+  mode: Mode,
+  opts: { allowSuggestions?: boolean; draftOrder?: DraftOrder; draftRounds?: number } = {}
 ): Promise<{ code: string; roomId: string }> {
   const res = await api("POST", "/rooms", {
     topic: "Test topic",
