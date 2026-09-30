@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planRound } from "../src/lib/bracket-shape";
+import { planRound, totalRoundsFor } from "./bracket-shape";
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `i${i}`);
 
@@ -29,5 +29,23 @@ describe("planRound", () => {
 
   it("plans a lone finalist as no matchups at all", () => {
     expect(planRound(ids(1), 4)).toEqual([]);
+  });
+});
+
+describe("totalRoundsFor", () => {
+  it("matches the number of rounds planRound actually plays", () => {
+    for (let n = 2; n <= 16; n++) {
+      let field = ids(n);
+      let rounds = 0;
+      while (field.length > 1) {
+        rounds++;
+        field = planRound(field, rounds).map((s) => s.itemA);
+      }
+      expect(totalRoundsFor(n), `n=${n}`).toBe(rounds);
+    }
+  });
+
+  it("is ceil(log2(n))", () => {
+    expect([4, 5, 8, 9, 16].map(totalRoundsFor)).toEqual([2, 3, 3, 4, 4]);
   });
 });

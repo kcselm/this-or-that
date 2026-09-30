@@ -13,6 +13,7 @@ import { getStatus, revealResults, getRoom, ApiError, type StatusResponse } from
 import { getVoterId } from "../../../lib/storage";
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
+import { IN_PROGRESS_LABELS, type Mode } from "../../../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
 
 function PulsingRing() {
@@ -43,7 +44,12 @@ const ringStyles = StyleSheet.create({
 
 export default function WaitingScreen() {
   const router = useRouter();
-  const { code, name, isCreator: isCreatorParam, lastVotedRound } = useLocalSearchParams<{
+  const {
+    code,
+    name,
+    isCreator: isCreatorParam,
+    lastVotedRound,
+  } = useLocalSearchParams<{
     code: string;
     name: string;
     isCreator?: string;
@@ -51,7 +57,7 @@ export default function WaitingScreen() {
   }>();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [revealing, setRevealing] = useState(false);
-  const [mode, setMode] = useState<"vote" | "rank" | "bracket" | "mlt" | "tier" | null>(null);
+  const [mode, setMode] = useState<Mode | null>(null);
   const isCreator = isCreatorParam === "true";
 
   usePolling(async (stop) => {
@@ -98,9 +104,7 @@ export default function WaitingScreen() {
     } catch (e) {
       if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
         stop();
-        showAlert("Room Expired", "This room no longer exists.", () =>
-          router.replace("/")
-        );
+        showAlert("Room Expired", "This room no longer exists.", () => router.replace("/"));
       }
     }
   }, 3000);
@@ -130,9 +134,7 @@ export default function WaitingScreen() {
 
         {status && (
           <View style={styles.progressBar}>
-            <Animated.View
-              style={[styles.progressFill, { width: `${progressPercent}%` }]}
-            />
+            <Animated.View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
           </View>
         )}
       </View>
@@ -146,20 +148,22 @@ export default function WaitingScreen() {
                   {voter.name.charAt(0).toUpperCase()}
                 </Text>
               </View>
-              <Text style={styles.voterName} numberOfLines={1}>{voter.name}</Text>
-              <View style={[styles.statusBadge, voter.completed ? styles.doneBadge : styles.pendingBadge]}>
-                <Text style={[styles.statusText, voter.completed ? styles.doneText : styles.pendingText]}>
-                  {voter.completed
-                    ? "Done"
-                    : mode === "rank"
-                    ? "Ranking..."
-                    : mode === "bracket"
-                    ? "Voting..."
-                    : mode === "mlt"
-                    ? "Voting on prompts..."
-                    : mode === "tier"
-                    ? "Sorting..."
-                    : "Swiping..."}
+              <Text style={styles.voterName} numberOfLines={1}>
+                {voter.name}
+              </Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  voter.completed ? styles.doneBadge : styles.pendingBadge,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    voter.completed ? styles.doneText : styles.pendingText,
+                  ]}
+                >
+                  {voter.completed ? "Done" : IN_PROGRESS_LABELS[mode ?? "vote"]}
                 </Text>
               </View>
             </View>

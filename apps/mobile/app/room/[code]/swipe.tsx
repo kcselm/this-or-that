@@ -8,7 +8,7 @@ import { getVoterId } from "../../../lib/storage";
 import { getRoom, submitVote } from "../../../lib/api";
 import { showAlert } from "../../../lib/alert";
 import { seededShuffle } from "../../../lib/shuffle";
-import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
+import { colors, spacing, radius, typography } from "../../../lib/theme";
 
 type Item = { id: string; title: string };
 
@@ -140,9 +140,7 @@ export default function SwipeScreen() {
       {/* Progress bar */}
       <View style={styles.progressSection}>
         <View style={styles.progressBar}>
-          <Animated.View
-            style={[styles.progressFill, { width: `${progress}%` }]}
-          />
+          <Animated.View style={[styles.progressFill, { width: `${progress}%` }]} />
         </View>
         <Text style={styles.progressText}>
           {currentIndex + 1} of {items.length}

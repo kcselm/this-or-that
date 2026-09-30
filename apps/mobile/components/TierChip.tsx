@@ -52,10 +52,7 @@ export default function TierChip({
   const gesture = Gesture.Race(tap, pan);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
     zIndex: active.value ? 999 : 1,
     elevation: active.value ? 12 : 2,
   }));

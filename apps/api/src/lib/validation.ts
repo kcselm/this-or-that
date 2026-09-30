@@ -14,6 +14,11 @@ export function invalidStatus(message: string) {
   return errorResponse("INVALID_STATUS", message, 400);
 }
 
+/** Whether a D1 error is a UNIQUE-constraint violation (a duplicate submission or a lost race). */
+export function isUniqueViolation(e: unknown): boolean {
+  return String((e as Error)?.message ?? e).includes("UNIQUE");
+}
+
 export function validationError(message: string) {
   return errorResponse("VALIDATION_ERROR", message, 400);
 }

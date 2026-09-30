@@ -13,26 +13,24 @@ import { showAlert } from "../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { getSavedList, getVoterId } from "../../lib/storage";
 import { createRoom } from "../../lib/api";
+import { MODE_RULES } from "@tot/shared";
+import { parseMode } from "../../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function CreateRoomScreen() {
   const router = useRouter();
-  const { mode: modeParam, previousRoomCode, name: nameParam, listId } = useLocalSearchParams<{
+  const {
+    mode: modeParam,
+    previousRoomCode,
+    name: nameParam,
+    listId,
+  } = useLocalSearchParams<{
     mode?: string;
     previousRoomCode?: string;
     name?: string;
     listId?: string;
   }>();
-  const mode: "vote" | "rank" | "bracket" | "mlt" | "tier" =
-    modeParam === "rank"
-      ? "rank"
-      : modeParam === "bracket"
-        ? "bracket"
-        : modeParam === "mlt"
-          ? "mlt"
-          : modeParam === "tier"
-            ? "tier"
-            : "vote";
+  const mode = parseMode(modeParam);
   const [topic, setTopic] = useState("");
   const [name, setName] = useState(nameParam ?? "");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
@@ -60,7 +58,7 @@ export default function CreateRoomScreen() {
         topic: trimmedTopic,
         creatorVoterId: voterId,
         creatorName: trimmedName,
-        allowSuggestions: mode === "vote" ? allowSuggestions : false,
+        allowSuggestions: MODE_RULES[mode].suggestions ? allowSuggestions : false,
         mode,
         ...(previousRoomCode ? { previousRoomCode } : {}),
       });
@@ -131,9 +129,7 @@ export default function CreateRoomScreen() {
         <View style={styles.toggleRow}>
           <View style={styles.toggleLabel}>
             <Text style={styles.label}>Let others add items</Text>
-            <Text style={styles.toggleHint}>
-              Friends can suggest options after joining
-            </Text>
+            <Text style={styles.toggleHint}>Friends can suggest options after joining</Text>
           </View>
           <Switch
             value={allowSuggestions}
@@ -153,9 +149,7 @@ export default function CreateRoomScreen() {
         onPress={handleCreate}
         disabled={loading}
       >
-        <Text style={styles.buttonText}>
-          {loading ? "Creating..." : "Create Room"}
-        </Text>
+        <Text style={styles.buttonText}>{loading ? "Creating..." : "Create Room"}</Text>
       </Pressable>
     </KeyboardAvoidingView>
   );

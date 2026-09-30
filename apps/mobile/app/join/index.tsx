@@ -47,9 +47,7 @@ export default function JoinScreen() {
     >
       <View style={styles.content}>
         <Text style={styles.heading}>Enter room code</Text>
-        <Text style={styles.subheading}>
-          Ask the room creator for their 6-character code
-        </Text>
+        <Text style={styles.subheading}>Ask the room creator for their 6-character code</Text>
 
         <View style={styles.inputCard}>
           <TextInput
@@ -74,9 +72,7 @@ export default function JoinScreen() {
           onPress={handleJoin}
           disabled={code.trim().length !== 6 || loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Joining..." : "Join"}
-          </Text>
+          <Text style={styles.buttonText}>{loading ? "Joining..." : "Join"}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

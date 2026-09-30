@@ -1,16 +1,15 @@
 import { createRouter } from "../types";
-import {
-  getRoomByCode,
-  getItemCount,
-} from "../db/queries";
+import { getRoomByCode, getItemCount } from "../db/queries";
 import { notFound, invalidStatus, validationError } from "../lib/validation";
 import { MLT_PROMPTS } from "../lib/mlt-prompts";
+import { isParticipant, isValidName } from "../lib/participants";
+import { maybeReveal, wrongModeError } from "../modes";
 
 export const mltPrompts = createRouter();
 export const mlt = createRouter();
 
 // GET /api/mlt/prompts — Returns the curated prompt library.
-mltPrompts.get("/prompts", (c) => {
+mltPrompts.get("/prompts", () => {
   return Response.json({ prompts: MLT_PROMPTS });
 });
 
@@ -26,7 +25,7 @@ mlt.post("/:code/mlt-votes", async (c) => {
   if (!voterId || typeof voterId !== "string") {
     return validationError("voterId is required");
   }
-  if (!voterName || typeof voterName !== "string" || voterName.length < 1 || voterName.length > 30) {
+  if (!isValidName(voterName)) {
     return validationError("voterName is required and must be 1-30 characters");
   }
   if (!targetParticipantId || typeof targetParticipantId !== "string") {
@@ -36,19 +35,15 @@ mlt.post("/:code/mlt-votes", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
-  if (room.mode !== "mlt") {
-    return validationError("This endpoint is only for Most Likely To rooms");
-  }
+  const wrongMode = wrongModeError(room, "mlt");
+  if (wrongMode) return wrongMode;
   if (room.status !== "voting") {
     return invalidStatus("Votes can only be submitted while the room is in voting status");
   }
 
-  // Verify the voter is a participant
-  const voter = await db
-    .prepare("SELECT voter_id, voter_name FROM participants WHERE room_id = ? AND voter_id = ?")
-    .bind(room.id, voterId)
-    .first<{ voter_id: string; voter_name: string }>();
-  if (!voter) return validationError("Voter is not a participant of this room");
+  if (!(await isParticipant(db, room.id, voterId))) {
+    return validationError("Voter is not a participant of this room");
+  }
 
   // Resolve the target by public participant id — clients never see voter ids.
   const target = await db
@@ -92,42 +87,10 @@ mlt.post("/:code/mlt-votes", async (c) => {
   const totalItems = await getItemCount(db, room.id);
   const voted = voterVotes?.count ?? 0;
 
-  // Auto-reveal: when every participant has voted on every prompt.
+  // This voter just finished — they may have been the last one.
   if (voted === totalItems) {
-    await maybeReveal(db, room.id, totalItems);
+    await maybeReveal(db, room);
   }
 
-  return Response.json(
-    { success: true, progress: { voted, total: totalItems } },
-    { status: 201 }
-  );
+  return Response.json({ success: true, progress: { voted, total: totalItems } }, { status: 201 });
 });
-
-async function maybeReveal(db: D1Database, roomId: string, totalItems: number) {
-  const participantCount = await db
-    .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
-    .bind(roomId)
-    .first<{ count: number }>();
-
-  // Only registered participants count toward completion.
-  const completed = await db
-    .prepare(
-      `SELECT COUNT(*) as completed FROM (
-        SELECT v.voter_id FROM mlt_votes v
-        JOIN participants p ON p.room_id = v.room_id AND p.voter_id = v.voter_id
-        WHERE v.room_id = ? GROUP BY v.voter_id HAVING COUNT(*) >= ?
-      )`
-    )
-    .bind(roomId, totalItems)
-    .first<{ completed: number }>();
-
-  // mlt requires ≥3 participants (defense-in-depth; start-time gate already enforces this).
-  const totalParticipants = participantCount?.count ?? 0;
-  const completedCount = completed?.completed ?? 0;
-  if (totalParticipants >= 3 && completedCount >= totalParticipants) {
-    await db
-      .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
-      .bind(roomId)
-      .run();
-  }
-}

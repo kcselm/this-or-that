@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { getVoterId, saveActiveRoom } from "../../lib/storage";
 import { showAlert } from "../../lib/alert";
 import { getRoom, joinRoom } from "../../lib/api";
+import { roomScreen } from "../../lib/modes";
 import { colors, spacing, radius, typography, shadows } from "../../lib/theme";
 
 export default function NameScreen() {
@@ -55,27 +56,10 @@ export default function NameScreen() {
       await joinRoom(targetCode, { voterId, voterName: trimmed });
       await saveActiveRoom({ code: targetCode, topic: room.topic, name: trimmed });
 
-      if (room.status === "open") {
-        router.replace({
-          pathname: "/room/[code]/lobby",
-          params: { code: targetCode, name: trimmed },
-        });
-      } else if (room.status === "voting") {
-        router.replace({
-          pathname:
-            room.mode === "rank" ? "/room/[code]/rank" :
-            room.mode === "bracket" ? "/room/[code]/bracket" :
-            room.mode === "mlt" ? "/room/[code]/mlt" :
-            room.mode === "tier" ? "/room/[code]/tier" :
-            "/room/[code]/swipe",
-          params: { code: targetCode, name: trimmed, isCreator: "false" },
-        });
-      } else {
-        router.replace({
-          pathname: "/room/[code]/results",
-          params: { code: targetCode, name: trimmed },
-        });
-      }
+      router.replace({
+        pathname: roomScreen(room.status, room.mode, false) ?? "/room/[code]/results",
+        params: { code: targetCode, name: trimmed, isCreator: "false" },
+      });
     } catch (e: any) {
       showAlert("Error", e.message);
     } finally {
@@ -96,9 +80,7 @@ export default function NameScreen() {
         </View>
 
         <Text style={styles.heading}>What's your name?</Text>
-        <Text style={styles.subheading}>
-          This is how others will see you in the room
-        </Text>
+        <Text style={styles.subheading}>This is how others will see you in the room</Text>
 
         <TextInput
           style={styles.input}
@@ -120,9 +102,7 @@ export default function NameScreen() {
           onPress={handleContinue}
           disabled={!name.trim() || loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Loading..." : "Continue"}
-          </Text>
+          <Text style={styles.buttonText}>{loading ? "Loading..." : "Continue"}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

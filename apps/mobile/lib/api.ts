@@ -1,3 +1,8 @@
+import type { Mode, Tier } from "@tot/shared";
+import type { RoomStatus } from "./modes";
+
+export type { Tier };
+
 // Override for local development: EXPO_PUBLIC_API_BASE=http://localhost:8787/api
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? "https://tot-api.kcselm93.workers.dev/api";
 
@@ -61,7 +66,7 @@ export type CreateRoomResponse = {
   id: string;
   code: string;
   topic: string;
-  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
+  mode: Mode;
   createdAt: string;
   expiresAt: string;
   roundNumber?: number;
@@ -72,7 +77,7 @@ export function createRoom(body: {
   creatorVoterId: string;
   creatorName: string;
   allowSuggestions?: boolean;
-  mode?: "vote" | "rank" | "bracket" | "mlt" | "tier";
+  mode?: Mode;
   previousRoomCode?: string;
 }) {
   return request<CreateRoomResponse>("/rooms", {
@@ -93,14 +98,20 @@ export function addItems(code: string, body: { items: string[]; creatorVoterId: 
   });
 }
 
-export function addItem(code: string, body: { item: string; creatorVoterId?: string; voterId?: string; voterName?: string }) {
+export function addItem(
+  code: string,
+  body: { item: string; creatorVoterId?: string; voterId?: string; voterName?: string }
+) {
   return request<AddItemsResponse>(`/rooms/${code}/items`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateRoomSettings(code: string, body: { creatorVoterId: string; allowSuggestions: boolean }) {
+export function updateRoomSettings(
+  code: string,
+  body: { creatorVoterId: string; allowSuggestions: boolean }
+) {
   return request<{ success: boolean; allowSuggestions: boolean }>(`/rooms/${code}/settings`, {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -109,7 +120,7 @@ export function updateRoomSettings(code: string, body: { creatorVoterId: string;
 
 export function deleteItem(code: string, itemId: string, creatorVoterId: string) {
   return request<{ success: boolean; totalItems: number }>(
-    `/rooms/${code}/items/${itemId}?creatorVoterId=${creatorVoterId}`,
+    `/rooms/${code}/items/${encodeURIComponent(itemId)}?creatorVoterId=${encodeURIComponent(creatorVoterId)}`,
     { method: "DELETE" }
   );
 }
@@ -122,10 +133,10 @@ export function closeRoom(code: string, creatorVoterId: string) {
 }
 
 export function startVoting(code: string, creatorVoterId: string) {
-  return request<{ success: boolean; status: string; itemCount: number }>(
-    `/rooms/${code}/start`,
-    { method: "POST", body: JSON.stringify({ creatorVoterId }) }
-  );
+  return request<{ success: boolean; status: string; itemCount: number }>(`/rooms/${code}/start`, {
+    method: "POST",
+    body: JSON.stringify({ creatorVoterId }),
+  });
 }
 
 export type RoomItem = {
@@ -138,9 +149,9 @@ export type RoomResponse = {
   id: string;
   code: string;
   topic: string;
-  status: "open" | "voting" | "revealed" | "closed";
+  status: RoomStatus;
   allowSuggestions: boolean;
-  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
+  mode: Mode;
   items: RoomItem[];
   myVotes?: Record<string, string>;
   myRankings?: Record<string, number>;
@@ -151,7 +162,7 @@ export type RoomResponse = {
 };
 
 export function getRoom(code: string, voterId?: string) {
-  const params = voterId ? `?voterId=${voterId}` : "";
+  const params = voterId ? `?voterId=${encodeURIComponent(voterId)}` : "";
   return request<RoomResponse>(`/rooms/${code}${params}`);
 }
 
@@ -248,51 +259,51 @@ export function submitRanking(
   });
 }
 
-// --- Rank results ---
+// --- Results ---
+// Every results payload carries `mode`, so screens switch on it directly.
+// (Snapshots saved before swipe-vote results had a mode are normalized in
+// saved-results.ts.)
 
-export type RankResultsResponse =
-  | {
-      revealed: true;
-      mode: "rank";
-      topic: string;
-      players: {
-        participantId: string;
-        name: string;
-        isCreator: boolean;
-        isYou: boolean;
-        rankings: { rank: number; itemId: string; title: string }[];
-      }[];
-    }
-  | {
-      revealed: false;
-      mode: "rank";
-      completedCount: number;
-      totalVoters: number;
-    };
+export type VoteResults = {
+  revealed: true;
+  mode: "vote";
+  topic: string;
+  totalVoters: number;
+  results: {
+    itemId: string;
+    title: string;
+    yesCount: number;
+    noCount: number;
+    yesPercentage: number;
+  }[];
+};
 
-export type ResultsResponse =
-  | {
-      revealed: true;
-      topic: string;
-      totalVoters: number;
-      results: {
-        itemId: string;
-        title: string;
-        yesCount: number;
-        noCount: number;
-        yesPercentage: number;
-      }[];
-    }
-  | {
-      revealed: false;
-      completedCount: number;
-      totalVoters: number;
-    }
-  | RankResultsResponse
-  | BracketResultsResponse
-  | MltResultsRevealed
-  | MltResultsPending
-  | TierResultsResponse;
+export type RankResults = {
+  revealed: true;
+  mode: "rank";
+  topic: string;
+  players: {
+    participantId: string;
+    name: string;
+    isCreator: boolean;
+    isYou: boolean;
+    rankings: { rank: number; itemId: string; title: string }[];
+  }[];
+};
+
+export type RevealedResults = VoteResults | RankResults | BracketResults | MltResults | TierResults;
+
+export type PendingResults = {
+  revealed: false;
+  mode: Mode;
+  completedCount: number;
+  totalVoters: number;
+  /** Bracket only: the round being played and its real matchup count. */
+  currentRound?: number | null;
+  totalThisRound?: number;
+};
+
+export type ResultsResponse = RevealedResults | PendingResults;
 
 export function getResults(code: string, voterId?: string) {
   const params = voterId ? `?voterId=${encodeURIComponent(voterId)}` : "";
@@ -332,9 +343,7 @@ export type BracketResponse = {
 };
 
 export function getBracket(code: string, voterId: string) {
-  return request<BracketResponse>(
-    `/rooms/${code}/bracket?voterId=${encodeURIComponent(voterId)}`
-  );
+  return request<BracketResponse>(`/rooms/${code}/bracket?voterId=${encodeURIComponent(voterId)}`);
 }
 
 export type MatchupVoteResponse = {
@@ -354,23 +363,14 @@ export function submitMatchupVote(
 
 // --- Bracket results ---
 
-export type BracketResultsResponse =
-  | {
-      revealed: true;
-      mode: "bracket";
-      topic: string;
-      totalRounds: number;
-      winner: { id: string; title: string } | null;
-      rounds: BracketRound[];
-    }
-  | {
-      revealed: false;
-      mode: "bracket";
-      currentRound: number;
-      totalVoters: number;
-      completedCount: number;
-      totalThisRound: number;
-    };
+export type BracketResults = {
+  revealed: true;
+  mode: "bracket";
+  topic: string;
+  totalRounds: number;
+  winner: { id: string; title: string } | null;
+  rounds: BracketRound[];
+};
 
 // --- Most Likely To endpoints ---
 
@@ -423,7 +423,7 @@ export type MltLeaderboardEntry = {
   isYou: boolean;
 };
 
-export type MltResultsRevealed = {
+export type MltResults = {
   revealed: true;
   mode: "mlt";
   topic: string;
@@ -431,16 +431,7 @@ export type MltResultsRevealed = {
   leaderboard: MltLeaderboardEntry[];
 };
 
-export type MltResultsPending = {
-  revealed: false;
-  mode: "mlt";
-  completedCount: number;
-  totalVoters: number;
-};
-
 // --- Tier list endpoints (tier mode) ---
-
-export type Tier = "S" | "A" | "B" | "C" | "D";
 
 export type TierPlacementInput = { itemId: string; tier: Tier };
 
@@ -473,17 +464,10 @@ export type TierPlayerBoard = {
   placements: { itemId: string; title: string; tier: Tier }[];
 };
 
-export type TierResultsResponse =
-  | {
-      revealed: true;
-      mode: "tier";
-      topic: string;
-      consensus: TierConsensusRow[];
-      players: TierPlayerBoard[];
-    }
-  | {
-      revealed: false;
-      mode: "tier";
-      completedCount: number;
-      totalVoters: number;
-    };
+export type TierResults = {
+  revealed: true;
+  mode: "tier";
+  topic: string;
+  consensus: TierConsensusRow[];
+  players: TierPlayerBoard[];
+};

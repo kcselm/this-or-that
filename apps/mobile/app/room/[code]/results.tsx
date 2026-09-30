@@ -1,57 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ScrollView,
-  ActivityIndicator,
-  Pressable,
-  Modal,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
-import {
-  getResults,
-  getStatus,
-  getParticipants,
-  joinRoom,
-  getRoom,
-  pickNextHost,
-  type ResultsResponse,
-  type Participant,
-} from "../../../lib/api";
-import {
-  getVoterId,
-  clearActiveRoom,
-  getActiveRoom,
-  saveActiveRoom,
-  getSavedResult,
-  saveResult,
-} from "../../../lib/storage";
-import type { RevealedResults } from "../../../lib/saved-results";
-import { usePolling } from "../../../lib/usePolling";
-import { showAlert } from "../../../lib/alert";
-import RankPlayerCard from "../../../components/RankPlayerCard";
-import BracketView from "../../../components/BracketView";
-import MltRevealCard from "../../../components/MltRevealCard";
-import TierBoard from "../../../components/TierBoard";
-import { TIERS } from "../../../lib/tiers";
-import type { Tier } from "../../../lib/api";
-import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
-
-type RevealedVoteResults = Extract<ResultsResponse, { revealed: true; results: any[] }>;
-type RevealedRankResults = Extract<ResultsResponse, { revealed: true; mode: "rank" }>;
-type RevealedBracketResults = Extract<ResultsResponse, { revealed: true; mode: "bracket" }>;
-type RevealedMltResults = Extract<ResultsResponse, { revealed: true; mode: "mlt" }>;
-type RevealedTierResults = Extract<ResultsResponse, { revealed: true; mode: "tier" }>;
-
-const MEDAL_COLORS = [
-  { bg: "#FFF4E3", border: "#FFB347", text: "#E09422" }, // gold
-  { bg: "#F0F0F0", border: "#B0B0B0", text: "#808080" }, // silver
-  { bg: "#FFF0E8", border: "#D4956A", text: "#B07840" }, // bronze
-];
+import { MODE_RULES } from "@tot/shared";
+import { getResults, type RevealedResults } from "../../../lib/api";
+import { getVoterId, clearActiveRoom, getSavedResult, saveResult } from "../../../lib/storage";
+import { useNextRound } from "../../../lib/useNextRound";
+import VoteResults from "../../../components/results/VoteResults";
+import RankResults from "../../../components/results/RankResults";
+import BracketResults from "../../../components/results/BracketResults";
+import MltResults from "../../../components/results/MltResults";
+import TierResults from "../../../components/results/TierResults";
+import { resultStyles } from "../../../components/results/styles";
+import { colors, spacing, radius, typography } from "../../../lib/theme";
 
 export default function ResultsScreen() {
   const router = useRouter();
@@ -64,38 +25,24 @@ export default function ResultsScreen() {
     saved?: string;
   }>();
   const fromHistory = saved === "1";
-  const [voteData, setVoteData] = useState<RevealedVoteResults | null>(null);
-  const [rankData, setRankData] = useState<RevealedRankResults | null>(null);
-  const [bracketData, setBracketData] = useState<RevealedBracketResults | null>(null);
-  const [mltData, setMltData] = useState<RevealedMltResults | null>(null);
-  const [tierData, setTierData] = useState<RevealedTierResults | null>(null);
+  const [data, setData] = useState<RevealedResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [nextHost, setNextHost] = useState<{ participantId: string; name: string } | null>(null);
-  const [advancing, setAdvancing] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
 
-  const showResults = (res: RevealedResults) => {
-    if ("mode" in res && res.mode === "rank") {
-      setRankData(res);
-    } else if ("mode" in res && res.mode === "bracket") {
-      setBracketData(res);
-    } else if ("mode" in res && res.mode === "mlt") {
-      setMltData(res);
-    } else if ("mode" in res && res.mode === "tier") {
-      setTierData(res);
-    } else {
-      setVoteData(res as RevealedVoteResults);
-    }
-  };
+  // Only a live room whose mode supports series can continue into another
+  // round. null while we don't know the mode yet.
+  const nextRound = useNextRound(
+    code,
+    name,
+    fromHistory ? false : data ? MODE_RULES[data.mode].series : null
+  );
 
   const loadResults = async () => {
     setLoading(true);
     setError(null);
     if (fromHistory) {
       const entry = await getSavedResult(code);
-      if (entry) showResults(entry.data);
+      if (entry) setData(entry.data);
       else setError("These results are no longer saved on this device.");
       setLoading(false);
       return;
@@ -108,13 +55,13 @@ export default function ResultsScreen() {
       } else {
         // Keep a local copy — the room is deleted from the server after 48h.
         saveResult(code, res).catch(() => {});
-        // Rank rooms may continue into another round — keep the rejoin
+        // Series rooms may continue into another round — keep the rejoin
         // banner alive until the player actually leaves for home. Other
         // modes forget the room only once its results are actually shown —
         // clearing on mount destroyed the rejoin banner for live rooms
         // whenever this screen was reached early.
-        if (!("mode" in res && res.mode === "rank")) clearActiveRoom();
-        showResults(res);
+        if (!MODE_RULES[res.mode].series) clearActiveRoom();
+        setData(res);
       }
     } catch (e: any) {
       setError(e.message);
@@ -127,132 +74,14 @@ export default function ResultsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  const me = participants.find((p) => p.isYou);
-  const isHost = !!me?.isCreator;
-  const iAmNext = !!(nextHost && me && nextHost.participantId === me.participantId);
-
-  const resolveDisplayName = async (): Promise<string | null> => {
-    if (name) return name;
-    const active = await getActiveRoom();
-    return active?.name ?? null;
-  };
-
-  // Guards against a second poll tick starting a concurrent advance attempt
-  // (an in-flight advance's own awaits can overlap the 3s interval). Flipped
-  // synchronously — no await between the check and the set — so two
-  // overlapping ticks can't both pass the guard.
-  const advancingRef = useRef(false);
-
-  // Lets the "You're up!" button (and anything else outside the poll
-  // callback) stop the results poll before navigating away, so a buried
-  // results screen can't auto-advance someone mid-typing on the next screen.
-  const stopRef = useRef<(() => void) | null>(null);
-
-  const advanceToNextRound = async (newCode: string, stop: () => void) => {
-    setAdvancing(true);
-    try {
-      const displayName = await resolveDisplayName();
-      if (!displayName) {
-        // Never joined under a name (e.g. viewed results via an old code) —
-        // run them through the normal name entry for the new room. Stop
-        // polling only now that we're actually navigating away.
-        stop();
-        router.replace({ pathname: "/join/name", params: { code: newCode } });
-        return;
-      }
-      const voterId = await getVoterId();
-      // Fetch the successor first and branch on its status — POST /join
-      // rejects revealed/closed rooms with 400, and a phone backgrounded
-      // through the whole next round can reopen after it's already revealed.
-      const newRoom = await getRoom(newCode, voterId);
-      if (newRoom.status === "revealed") {
-        stop();
-        router.replace({
-          pathname: "/room/[code]/results",
-          params: { code: newCode, name: displayName },
-        });
-        return;
-      }
-      if (newRoom.status === "closed") {
-        stop();
-        await clearActiveRoom();
-        router.replace("/");
-        return;
-      }
-      await joinRoom(newCode, { voterId, voterName: displayName });
-      await saveActiveRoom({ code: newCode, topic: newRoom.topic, name: displayName });
-      stop();
-      router.replace({
-        pathname: "/room/[code]/lobby",
-        params: { code: newCode, name: displayName },
-      });
-    } catch {
-      // Transient failure (e.g. network blip) — clear the guard so the next
-      // poll tick (polling was never stopped) genuinely retries.
-      advancingRef.current = false;
-      setAdvancing(false);
-    }
-  };
-
-  usePolling(async (stop) => {
-    stopRef.current = stop;
-    // A saved snapshot is a record, not a live room — no next-round flow.
-    if (fromHistory) {
-      stop();
-      return;
-    }
-    // Series flow exists only for rank rooms; stop once another mode loaded.
-    if (voteData || bracketData || mltData || tierData) {
-      stop();
-      return;
-    }
-    if (!rankData) return;
-    try {
-      const voterId = await getVoterId();
-      let partsList = participants;
-      if (partsList.length === 0) {
-        const parts = await getParticipants(code, voterId);
-        partsList = parts.participants;
-        setParticipants(partsList);
-      }
-      const status = await getStatus(code);
-      if (status.nextHost !== undefined) setNextHost(status.nextHost ?? null);
-      if (status.nextRoomCode) {
-        const self = partsList.find((p) => p.isYou);
-        const selfIsNext = !!(
-          status.nextHost && self && status.nextHost.participantId === self.participantId
-        );
-        if (selfIsNext) {
-          // The new host reaches the new room through the create flow instead.
-          stop();
-        } else if (!advancingRef.current) {
-          advancingRef.current = true;
-          await advanceToNextRound(status.nextRoomCode, stop);
-        }
-      }
-    } catch {}
-  }, 3000);
-
-  const handlePick = async (participantId?: string) => {
-    try {
-      const voterId = await getVoterId();
-      const res = await pickNextHost(code, {
-        creatorVoterId: voterId,
-        ...(participantId ? { nextParticipantId: participantId } : {}),
-      });
-      setNextHost(res.nextHost);
-      setShowPicker(false);
-    } catch (e: any) {
-      showAlert("Error", e.message);
-    }
-  };
-
   // From Past Results, "home" means back to the history list, and leaving
-  // mustn't touch the rejoin banner.
+  // mustn't touch the rejoin banner. A web refresh leaves nothing to go back
+  // to, so fall back to the history screen itself.
   const homeLabel = fromHistory ? "Back to Past Results" : "Back to Home";
   const leave = async (clearRoom = false) => {
     if (fromHistory) {
-      router.back();
+      if (router.canGoBack()) router.back();
+      else router.replace("/history");
       return;
     }
     if (clearRoom) await clearActiveRoom();
@@ -268,7 +97,7 @@ export default function ResultsScreen() {
     );
   }
 
-  if (error || (!voteData && !rankData && !bracketData && !mltData && !tierData)) {
+  if (error || !data) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error ?? "Results not available yet"}</Text>
@@ -279,374 +108,43 @@ export default function ResultsScreen() {
           <Text style={styles.retryText}>Try Again</Text>
         </Pressable>
         <Pressable
-          style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
+          style={({ pressed }) => [resultStyles.homeLink, pressed && { opacity: 0.6 }]}
           onPress={() => leave()}
         >
-          <Text style={styles.homeLinkText}>{homeLabel}</Text>
+          <Text style={resultStyles.homeLinkText}>{homeLabel}</Text>
         </Pressable>
       </View>
     );
   }
 
-  if (rankData) {
-    return (
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: spacing.xxl }}>
-        <Animated.Text entering={FadeInUp.duration(400)} style={styles.rankTopic}>
-          {rankData.topic}
-        </Animated.Text>
-        <Text style={styles.rankMeta}>{rankData.players.length} players ranked</Text>
-        <View style={styles.rankList}>
-          {rankData.players.map((p, i) => (
-            <Animated.View key={p.participantId} entering={FadeInDown.duration(400).delay(i * 80)}>
-              <RankPlayerCard
-                name={p.name}
-                isYou={p.isYou}
-                isCreator={p.isCreator}
-                rankings={p.rankings}
-              />
-            </Animated.View>
-          ))}
-        </View>
-        {advancing ? (
-          <View style={styles.nextHostBanner}>
-            <Text style={styles.nextHostBannerText}>Heading to the next round…</Text>
-          </View>
-        ) : (
-          <>
-            {nextHost && !iAmNext && (
-              <View style={styles.nextHostBanner}>
-                <Text style={styles.nextHostBannerText}>
-                  🎲 {nextHost.name} is up next — waiting for their category…
-                </Text>
-              </View>
-            )}
-            {iAmNext && (
-              <Pressable
-                style={({ pressed }) => [styles.youreUpButton, pressed && { opacity: 0.85 }]}
-                onPress={() => {
-                  stopRef.current?.();
-                  router.push({
-                    pathname: "/create",
-                    params: { mode: "rank", previousRoomCode: code, name: name ?? "" },
-                  });
-                }}
-              >
-                <Text style={styles.youreUpText}>You're up! Create the next category</Text>
-              </Pressable>
-            )}
-            {isHost && (
-              <Pressable
-                style={({ pressed }) => [styles.keepPlayingButton, pressed && styles.homeButtonPressed]}
-                onPress={() => setShowPicker(true)}
-              >
-                <Text style={styles.homeButtonText}>
-                  {nextHost ? "Change next host" : "Keep Playing"}
-                </Text>
-              </Pressable>
-            )}
-          </>
-        )}
-        <Pressable
-          style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
-          onPress={() => leave(true)}
-        >
-          <Text style={styles.homeLinkText}>{homeLabel}</Text>
-        </Pressable>
-
-        <Modal
-          visible={showPicker}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowPicker(false)}
-        >
-          <View style={styles.pickerOverlay}>
-            <View style={styles.pickerCard}>
-              <Text style={styles.pickerTitle}>Who hosts the next round?</Text>
-              <Pressable style={styles.pickerRandom} onPress={() => handlePick()}>
-                <Text style={styles.pickerRandomText}>🎲 Pick randomly</Text>
-              </Pressable>
-              {participants.map((p) => (
-                <Pressable
-                  key={p.participantId}
-                  style={styles.pickerRow}
-                  onPress={() => handlePick(p.participantId)}
-                >
-                  <Text style={styles.pickerRowText}>
-                    {p.isYou ? `${p.name} (you)` : p.name}
-                  </Text>
-                </Pressable>
-              ))}
-              <Pressable onPress={() => setShowPicker(false)}>
-                <Text style={styles.pickerCancel}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
-      </ScrollView>
-    );
-  }
-
-  if (mltData) {
-    return (
-      <ScrollView style={{ flex: 1, backgroundColor: colors.cream, paddingTop: insets.top }}>
-        <MltResultsView
-          data={mltData}
+  switch (data.mode) {
+    case "vote":
+      return <VoteResults data={data} homeLabel={homeLabel} onHome={() => leave()} />;
+    case "rank":
+      return (
+        <RankResults
+          data={data}
           homeLabel={homeLabel}
           onHome={() => leave(true)}
+          nextRound={fromHistory ? undefined : nextRound}
         />
-      </ScrollView>
-    );
+      );
+    case "bracket":
+      return <BracketResults data={data} homeLabel={homeLabel} onHome={() => leave()} />;
+    case "mlt":
+      return <MltResults data={data} homeLabel={homeLabel} onHome={() => leave(true)} />;
+    case "tier":
+      return <TierResults data={data} homeLabel={homeLabel} onHome={() => leave()} />;
   }
-
-  if (bracketData) {
-    return (
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: spacing.xxl }}
-      >
-        <Animated.View entering={FadeInUp.duration(500).springify()} style={styles.winnerCard}>
-          <Text style={styles.winnerLabel}>WINNER</Text>
-          <Text style={styles.winnerTitle}>{bracketData.winner?.title ?? "—"}</Text>
-        </Animated.View>
-
-        <Animated.Text entering={FadeInDown.duration(400).delay(150)} style={styles.topic}>
-          {bracketData.topic}
-        </Animated.Text>
-        <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.meta}>
-          {bracketData.totalRounds} rounds · tap a matchup to see who voted
-        </Animated.Text>
-
-        <View style={{ marginTop: spacing.lg }}>
-          <BracketView rounds={bracketData.rounds} expandableBreakdowns />
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.homeLink, pressed && { opacity: 0.6 }]}
-          onPress={() => leave()}
-        >
-          <Text style={styles.homeLinkText}>{homeLabel}</Text>
-        </Pressable>
-      </ScrollView>
-    );
-  }
-
-  if (tierData) {
-    return (
-      <TierResultsView
-        data={tierData}
-        insets={insets}
-        homeLabel={homeLabel}
-        onHome={() => leave()}
-      />
-    );
-  }
-
-  // Vote-mode results
-  return renderVoteResults(voteData!, insets, homeLabel, () => leave());
-}
-
-function renderVoteResults(
-  data: RevealedVoteResults,
-  insets: ReturnType<typeof useSafeAreaInsets>,
-  homeLabel: string,
-  onHome: () => void
-) {
-  const winner = data.results[0];
-  return (
-    <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      {/* Winner spotlight */}
-      <Animated.View entering={FadeInUp.duration(500).springify()} style={styles.winnerCard}>
-        <Text style={styles.winnerLabel}>TOP PICK</Text>
-        <Text style={styles.winnerTitle}>{winner?.title}</Text>
-        <View style={styles.winnerStats}>
-          <Text style={styles.winnerPercent}>{winner?.yesPercentage}%</Text>
-          <Text style={styles.winnerPercentLabel}>yes</Text>
-        </View>
-      </Animated.View>
-
-      <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.topic}>
-        {data.topic}
-      </Animated.Text>
-      <Animated.Text entering={FadeInDown.duration(400).delay(300)} style={styles.meta}>
-        {data.totalVoters} voters
-      </Animated.Text>
-
-      <FlatList
-        data={data.results}
-        keyExtractor={(item) => item.itemId}
-        contentContainerStyle={styles.list}
-        renderItem={({ item, index }) => {
-          const medal = index < 3 ? MEDAL_COLORS[index] : null;
-          const barColor =
-            item.yesPercentage >= 70
-              ? colors.teal
-              : item.yesPercentage >= 40
-              ? colors.amber
-              : colors.coral;
-
-          return (
-            <Animated.View
-              entering={FadeInDown.duration(400).delay(300 + index * 80)}
-              style={styles.resultRow}
-            >
-              <View
-                style={[
-                  styles.rankBadge,
-                  medal
-                    ? { backgroundColor: medal.bg, borderColor: medal.border, borderWidth: 2 }
-                    : { backgroundColor: colors.sandLight },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.rankText,
-                    medal ? { color: medal.text } : { color: colors.slate },
-                  ]}
-                >
-                  {index + 1}
-                </Text>
-              </View>
-              <View style={styles.resultInfo}>
-                <Text style={styles.resultTitle}>{item.title}</Text>
-                <View style={styles.barContainer}>
-                  <View
-                    style={[
-                      styles.barFill,
-                      { width: `${item.yesPercentage}%`, backgroundColor: barColor },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.resultMeta}>
-                  {item.yesPercentage}% yes · {item.yesCount} yes, {item.noCount} no
-                </Text>
-              </View>
-            </Animated.View>
-          );
-        }}
-      />
-
-      <Animated.View entering={FadeInDown.duration(400).delay(600)}>
-        <Pressable
-          style={({ pressed }) => [styles.homeButton, pressed && styles.homeButtonPressed]}
-          onPress={onHome}
-        >
-          <Text style={styles.homeButtonText}>{homeLabel}</Text>
-        </Pressable>
-      </Animated.View>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.cream,
-    padding: spacing.xl,
-  },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: colors.cream,
     padding: spacing.xl,
-  },
-  winnerCard: {
-    backgroundColor: colors.warmWhite,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    alignItems: "center",
-    marginBottom: spacing.lg,
-    borderWidth: 2,
-    borderColor: colors.amber,
-    ...shadows.card,
-  },
-  winnerLabel: {
-    ...typography.tiny,
-    color: colors.amber,
-    marginBottom: spacing.sm,
-  },
-  winnerTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: colors.charcoal,
-    textAlign: "center",
-    letterSpacing: -0.5,
-    marginBottom: spacing.md,
-  },
-  winnerStats: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.xs,
-  },
-  winnerPercent: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: colors.teal,
-  },
-  winnerPercentLabel: {
-    ...typography.body,
-    color: colors.teal,
-    fontWeight: "600",
-  },
-  topic: {
-    ...typography.h3,
-    color: colors.charcoal,
-    textAlign: "center",
-  },
-  meta: {
-    ...typography.caption,
-    color: colors.mist,
-    textAlign: "center",
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
-  },
-  list: {
-    gap: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  resultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.warmWhite,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.md,
-    ...shadows.soft,
-  },
-  rankBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  rankText: {
-    fontWeight: "800",
-    fontSize: 14,
-  },
-  resultInfo: {
-    flex: 1,
-  },
-  resultTitle: {
-    ...typography.bodyBold,
-    color: colors.charcoal,
-    marginBottom: spacing.xs,
-  },
-  barContainer: {
-    height: 8,
-    backgroundColor: colors.sand,
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: spacing.xs,
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  resultMeta: {
-    ...typography.caption,
-    color: colors.mist,
-    fontSize: 12,
   },
   loadingText: {
     ...typography.body,
@@ -672,358 +170,5 @@ const styles = StyleSheet.create({
   retryText: {
     color: colors.warmWhite,
     ...typography.bodyBold,
-  },
-  homeLink: {
-    paddingVertical: spacing.sm,
-  },
-  homeLinkText: {
-    ...typography.body,
-    color: colors.coral,
-  },
-  homeButton: {
-    backgroundColor: colors.coral,
-    paddingVertical: 16,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    marginTop: spacing.sm,
-    ...shadows.button,
-  },
-  homeButtonPressed: {
-    backgroundColor: colors.coralDark,
-    transform: [{ scale: 0.98 }],
-  },
-  homeButtonText: {
-    color: colors.warmWhite,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  rankTopic: {
-    ...typography.h1,
-    color: colors.coral,
-    textAlign: "center",
-    paddingHorizontal: spacing.xl,
-  },
-  rankMeta: {
-    ...typography.caption,
-    color: colors.mist,
-    textAlign: "center",
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
-  },
-  rankList: {
-    gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-  },
-  keepPlayingButton: {
-    backgroundColor: colors.coral,
-    paddingVertical: 16,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    marginTop: spacing.lg,
-    marginHorizontal: spacing.xl,
-    ...shadows.button,
-  },
-  youreUpButton: {
-    backgroundColor: colors.teal,
-    paddingVertical: 16,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    marginTop: spacing.lg,
-    marginHorizontal: spacing.xl,
-    ...shadows.button,
-  },
-  youreUpText: {
-    color: colors.warmWhite,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  nextHostBanner: {
-    backgroundColor: colors.warmWhite,
-    borderWidth: 2,
-    borderColor: colors.amber,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-    marginHorizontal: spacing.xl,
-  },
-  nextHostBannerText: {
-    ...typography.body,
-    color: colors.charcoal,
-    textAlign: "center",
-  },
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  pickerCard: {
-    backgroundColor: colors.warmWhite,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  pickerTitle: {
-    ...typography.h3,
-    color: colors.charcoal,
-    textAlign: "center",
-    marginBottom: spacing.sm,
-  },
-  pickerRandom: {
-    backgroundColor: colors.coral,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: "center",
-  },
-  pickerRandomText: {
-    ...typography.bodyBold,
-    color: colors.warmWhite,
-  },
-  pickerRow: {
-    backgroundColor: colors.sandLight,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: "center",
-  },
-  pickerRowText: {
-    ...typography.bodyBold,
-    color: colors.charcoal,
-  },
-  pickerCancel: {
-    ...typography.body,
-    color: colors.mist,
-    textAlign: "center",
-    paddingVertical: spacing.sm,
-  },
-});
-
-function MltResultsView({
-  data,
-  homeLabel,
-  onHome,
-}: {
-  data: RevealedMltResults;
-  homeLabel: string;
-  onHome: () => void;
-}) {
-  const [phase, setPhase] = useState<"reveal" | "leaderboard">("reveal");
-  const [promptIndex, setPromptIndex] = useState(0);
-
-  const handleNext = () => {
-    if (promptIndex + 1 < data.prompts.length) {
-      setPromptIndex((i) => i + 1);
-    } else {
-      setPhase("leaderboard");
-    }
-  };
-
-  const handleReplay = () => {
-    setPromptIndex(0);
-    setPhase("reveal");
-  };
-
-  if (phase === "reveal") {
-    const current = data.prompts[promptIndex];
-    return (
-      <MltRevealCard
-        key={current.itemId}
-        promptText={current.text}
-        promptIndex={promptIndex}
-        total={data.prompts.length}
-        tallies={current.tallies}
-        winners={current.winners}
-        onNext={handleNext}
-      />
-    );
-  }
-
-  // Leaderboard phase
-  const medals = ["🥇", "🥈", "🥉"];
-  return (
-    <View style={mltResultsStyles.leaderboardWrap}>
-      <Text style={mltResultsStyles.title}>🏆 Superlatives</Text>
-      {data.leaderboard.map((entry, i) => (
-        <View key={entry.participantId} style={mltResultsStyles.row}>
-          <Text style={mltResultsStyles.medal}>{medals[i] ?? "  "}</Text>
-          <Text style={mltResultsStyles.name}>{entry.name}</Text>
-          <Text style={mltResultsStyles.wins}>
-            {entry.wins} {entry.wins === 1 ? "win" : "wins"}
-          </Text>
-        </View>
-      ))}
-      <Pressable style={mltResultsStyles.btn} onPress={handleReplay}>
-        <Text style={mltResultsStyles.btnText}>Replay reveal</Text>
-      </Pressable>
-      <Pressable style={[mltResultsStyles.btn, mltResultsStyles.btnSecondary]} onPress={onHome}>
-        <Text style={[mltResultsStyles.btnText, mltResultsStyles.btnTextSecondary]}>
-          {homeLabel}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
-const mltResultsStyles = StyleSheet.create({
-  leaderboardWrap: { padding: spacing.xl, alignItems: "stretch" },
-  title: { ...typography.h1, color: colors.charcoal, textAlign: "center", marginBottom: spacing.lg },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.warmWhite,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.sand,
-  },
-  medal: { ...typography.h2, width: 40 },
-  name: { ...typography.h3, flex: 1, color: colors.charcoal },
-  wins: { ...typography.body, color: colors.slate },
-  btn: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.coral,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: "center",
-  },
-  btnSecondary: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.coral },
-  btnText: { ...typography.h3, color: "#fff", fontWeight: "600" },
-  btnTextSecondary: { color: colors.coral },
-});
-
-function TierResultsView({
-  data,
-  insets,
-  homeLabel,
-  onHome,
-}: {
-  data: RevealedTierResults;
-  insets: ReturnType<typeof useSafeAreaInsets>;
-  homeLabel: string;
-  onHome: () => void;
-}) {
-  // Tab 0 = Consensus; tabs 1..N = each player's board.
-  const [tab, setTab] = useState(0);
-
-  // The server pins "You" first when a voterId is sent; keep it stable here too.
-  const orderedPlayers = [...data.players].sort((a, b) => {
-    if (a.isYou !== b.isYou) return a.isYou ? -1 : 1;
-    return 0;
-  });
-
-  const consensusRows = TIERS.map((tier) => ({
-    tier,
-    titles:
-      data.consensus.find((r) => r.tier === tier)?.items.map((i) => i.title) ?? [],
-  }));
-
-  const playerRows = (placements: { title: string; tier: Tier }[]) =>
-    TIERS.map((tier) => ({
-      tier,
-      titles: placements.filter((p) => p.tier === tier).map((p) => p.title),
-    }));
-
-  const tabs = [
-    { key: "consensus", label: "Consensus" },
-    ...orderedPlayers.map((p) => ({
-      key: p.participantId,
-      label: p.isYou ? "You" : p.name,
-    })),
-  ];
-
-  const activePlayer = tab === 0 ? null : orderedPlayers[tab - 1];
-  const rows = tab === 0 ? consensusRows : playerRows(activePlayer!.placements);
-
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.cream }}
-      contentContainerStyle={{ paddingTop: insets.top + 16, padding: spacing.xl, paddingBottom: spacing.xxl }}
-    >
-      <Text style={tierResultsStyles.topic}>{data.topic}</Text>
-      <Text style={tierResultsStyles.meta}>
-        {tab === 0 ? "Averaged from every board" : `${tabs[tab].label}'s board`}
-      </Text>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={tierResultsStyles.tabs}
-      >
-        {tabs.map((t, i) => (
-          <Pressable
-            key={t.key}
-            onPress={() => setTab(i)}
-            style={[tierResultsStyles.tab, tab === i && tierResultsStyles.tabActive]}
-          >
-            <Text style={[tierResultsStyles.tabText, tab === i && tierResultsStyles.tabTextActive]}>
-              {t.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      <View style={{ marginTop: spacing.lg }}>
-        <TierBoard rows={rows} />
-      </View>
-
-      <Pressable
-        style={({ pressed }) => [tierResultsStyles.homeButton, pressed && { opacity: 0.85 }]}
-        onPress={onHome}
-      >
-        <Text style={tierResultsStyles.homeButtonText}>{homeLabel}</Text>
-      </Pressable>
-    </ScrollView>
-  );
-}
-
-const tierResultsStyles = StyleSheet.create({
-  topic: {
-    ...typography.h1,
-    color: colors.coral,
-    textAlign: "center",
-  },
-  meta: {
-    ...typography.caption,
-    color: colors.mist,
-    textAlign: "center",
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  tabs: {
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  tab: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    backgroundColor: colors.warmWhite,
-    borderWidth: 1,
-    borderColor: colors.sand,
-  },
-  tabActive: {
-    backgroundColor: colors.coral,
-    borderColor: colors.coral,
-  },
-  tabText: {
-    ...typography.caption,
-    color: colors.slate,
-    fontWeight: "700",
-  },
-  tabTextActive: {
-    color: colors.warmWhite,
-  },
-  homeButton: {
-    backgroundColor: colors.coral,
-    paddingVertical: 16,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    marginTop: spacing.xl,
-    ...shadows.button,
-  },
-  homeButtonText: {
-    color: colors.warmWhite,
-    fontSize: 18,
-    fontWeight: "700",
   },
 });

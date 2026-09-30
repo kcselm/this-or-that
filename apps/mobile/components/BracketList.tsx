@@ -69,12 +69,13 @@ export default function BracketList({ rounds, expandableBreakdowns }: Props) {
                           v.pickedItemId === m.itemA?.id
                             ? m.itemA?.title
                             : v.pickedItemId === m.itemB?.id
-                            ? m.itemB?.title
-                            : "?";
+                              ? m.itemB?.title
+                              : "?";
                         const isMe = v.isYou;
                         return (
                           <Text key={i} style={[styles.breakdownLine, isMe && styles.breakdownMe]}>
-                            {v.voterName}{isMe ? " (you)" : ""} → {pickedTitle}
+                            {v.voterName}
+                            {isMe ? " (you)" : ""} → {pickedTitle}
                           </Text>
                         );
                       })}

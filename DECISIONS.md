@@ -122,17 +122,17 @@ This document captures why each technical decision was made, so future-you (or c
 
 **Risks**: If the creator never starts, the room is stuck in `open`. Acceptable — rooms expire after 48 hours regardless.
 
-## Auto-Reveal at Participant Count
+## Auto-Reveal When Every Participant Is Done
 
-**Decision**: Results are automatically revealed when the number of completed voters equals the expected participant count set by the room creator.
+**Decision**: Results reveal automatically once every participant who joined the room has finished (with a mode-specific minimum of 2–3 players). The host can also force a reveal from the waiting screen.
 
 **Why**:
 
 - Creates a fun "reveal moment" — results appear simultaneously for everyone
-- Simpler than requiring the creator to manually trigger reveal
-- The expected count is set at room creation, so the system knows when everyone is done
+- The original design had the host enter an expected head count up front; migration 0002 replaced it with a participants table, so the room knows exactly who joined instead of relying on a guess
+- Force reveal covers the case where someone wanders off
 
-**Risks**: If someone never votes, results are stuck. Mitigation: the creator could be given a manual "reveal anyway" button on the waiting screen as a fallback. This is a minor enhancement that can be added post-MVP.
+**Risks**: Anyone who joins and then leaves still counts, so they hold up the automatic reveal until the host forces it. There's no kick or leave yet.
 
 ## Item Shuffle Per Participant
 
@@ -145,3 +145,26 @@ This document captures why each technical decision was made, so future-you (or c
 - Different participants see different orders, producing more balanced results
 
 **Implementation note**: Use a simple seeded PRNG (e.g., a function based on the voter ID string) to shuffle the items array client-side after fetching from the API.
+
+## Game Modes Behind One Handler Interface
+
+**Decision**: Each game mode is a `ModeHandler` in `apps/api/src/modes/` (item visibility, setup on start, resume state, progress, results), and the rules that the app also needs (item limits, player minimums, whether suggestions are allowed) live in the `@tot/shared` workspace package.
+
+**Why**:
+
+- With five modes, per-mode `if` chains had spread to ~10 places in the API and ~5 in the app, plus four copies of the auto-reveal query. Adding a mode meant finding all of them
+- Routes that every mode shares (`/status`, `/results`, `/start`, `GET /rooms/:code`) now dispatch through the handler and never branch on the mode
+- One copy of the rules means the app's "3/12 items" counter and the API's validation can't drift apart
+- The shared package ships TypeScript source with no build step: Metro, Wrangler's esbuild, and Vitest all compile it directly
+
+**Alternatives considered**: A published shared-types package with its own build (more moving parts for no gain in a monorepo); keeping the rules duplicated with "keep in sync" comments (that's what drifted).
+
+## Expired Rooms Are Deleted by a Cron
+
+**Decision**: Every request treats a room as gone once `expires_at` passes, and an hourly Cron Trigger deletes expired rooms and all their rows.
+
+**Why**:
+
+- Per-request checks alone left dead rows forever, and since `rooms.code` is `UNIQUE`, a new room that drew a dead room's code failed to insert
+- Deleting in one D1 batch (children first, because D1 enforces foreign keys) keeps each run a single transaction; runs are capped at 200 rooms, far above the creation rate
+- `expires_at` is compared against a bound ISO timestamp, never SQLite's `datetime('now')`, whose different format made rooms outlive their 48 hours

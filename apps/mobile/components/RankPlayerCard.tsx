@@ -25,7 +25,9 @@ export default function RankPlayerCard({ name, isYou, isCreator, rankings }: Pro
             <View style={styles.rankBubble}>
               <Text style={styles.rankNumber}>{r.rank}</Text>
             </View>
-            <Text style={styles.itemTitle} numberOfLines={1}>{r.title}</Text>
+            <Text style={styles.itemTitle} numberOfLines={1}>
+              {r.title}
+            </Text>
           </View>
         ))}
       </View>

@@ -1,10 +1,11 @@
+import { isTier } from "@tot/shared";
 import { createRouter } from "../types";
 import { getRoomByCode, getItemsByRoomId } from "../db/queries";
-import { notFound, invalidStatus, validationError } from "../lib/validation";
+import { notFound, invalidStatus, validationError, isUniqueViolation } from "../lib/validation";
+import { isParticipant, isValidName } from "../lib/participants";
+import { maybeReveal, wrongModeError } from "../modes";
 
 export const tiers = createRouter();
-
-const VALID_TIERS = new Set(["S", "A", "B", "C", "D"]);
 
 // POST /api/rooms/:code/tiers — Submit a full tier board in one shot (lock-in).
 tiers.post("/:code/tiers", async (c) => {
@@ -15,14 +16,14 @@ tiers.post("/:code/tiers", async (c) => {
   if (!voterId || typeof voterId !== "string") {
     return validationError("voterId is required");
   }
-  if (!voterName || typeof voterName !== "string" || voterName.length < 1 || voterName.length > 30) {
+  if (!isValidName(voterName)) {
     return validationError("voterName is required and must be 1-30 characters");
   }
   if (!Array.isArray(placements) || placements.length < 1) {
     return validationError("placements must be a non-empty array");
   }
   for (const p of placements) {
-    if (!p || typeof p.itemId !== "string" || typeof p.tier !== "string" || !VALID_TIERS.has(p.tier)) {
+    if (!p || typeof p.itemId !== "string" || typeof p.tier !== "string" || !isTier(p.tier)) {
       return validationError("Each placement needs an itemId and a tier of S, A, B, C, or D");
     }
   }
@@ -30,19 +31,15 @@ tiers.post("/:code/tiers", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
-  if (room.mode !== "tier") {
-    return validationError("This endpoint is only for tier list rooms");
-  }
+  const wrongMode = wrongModeError(room, "tier");
+  if (wrongMode) return wrongMode;
   if (room.status !== "voting") {
     return invalidStatus("Boards can only be submitted while the room is in voting status");
   }
 
-  // Verify the voter is a participant of this room.
-  const voter = await db
-    .prepare("SELECT voter_id FROM participants WHERE room_id = ? AND voter_id = ?")
-    .bind(room.id, voterId)
-    .first();
-  if (!voter) return validationError("You must join the room before submitting a board");
+  if (!(await isParticipant(db, room.id, voterId))) {
+    return validationError("You must join the room before submitting a board");
+  }
 
   // The board must place every item in the room exactly once.
   const items = await getItemsByRoomId(db, room.id);
@@ -73,53 +70,18 @@ tiers.post("/:code/tiers", async (c) => {
 
   try {
     await db.batch(statements);
-  } catch (e: any) {
-    const msg = String(e?.message ?? e);
-    if (msg.includes("UNIQUE")) {
+  } catch (e: unknown) {
+    if (isUniqueViolation(e)) {
       return validationError("You have already locked in your board");
     }
     throw e;
   }
 
   const total = items.length;
-  const isRevealed = await maybeRevealTier(db, room.id, total);
+  const isRevealed = await maybeReveal(db, room);
 
   return Response.json(
     { success: true, progress: { placed: total, total }, isRevealed },
     { status: 201 }
   );
 });
-
-async function maybeRevealTier(
-  db: D1Database,
-  roomId: string,
-  totalItems: number
-): Promise<boolean> {
-  const participantCount = await db
-    .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
-    .bind(roomId)
-    .first<{ count: number }>();
-
-  // Only registered participants count toward completion.
-  const completed = await db
-    .prepare(
-      `SELECT COUNT(*) as completed FROM (
-        SELECT t.voter_id FROM tier_placements t
-        JOIN participants p ON p.room_id = t.room_id AND p.voter_id = t.voter_id
-        WHERE t.room_id = ? GROUP BY t.voter_id HAVING COUNT(*) >= ?
-      )`
-    )
-    .bind(roomId, totalItems)
-    .first<{ completed: number }>();
-
-  const totalParticipants = participantCount?.count ?? 0;
-  const completedCount = completed?.completed ?? 0;
-  if (totalParticipants >= 2 && completedCount >= totalParticipants) {
-    await db
-      .prepare("UPDATE rooms SET status = 'revealed' WHERE id = ? AND status = 'voting'")
-      .bind(roomId)
-      .run();
-    return true;
-  }
-  return false;
-}

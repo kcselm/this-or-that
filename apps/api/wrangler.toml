@@ -1,8 +1,16 @@
 name = "tot-api"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-04-01"
+
+# Workers Logs: keeps console output and request traces in the dashboard.
+[observability]
+enabled = true
 
 [[d1_databases]]
 binding = "DB"
 database_name = "tot-db"
 database_id = "66fe869d-6c74-4d25-9b1b-8f78f09ce83a"
+
+# Hourly cleanup of expired rooms (see src/lib/cleanup.ts).
+[triggers]
+crons = ["0 * * * *"]

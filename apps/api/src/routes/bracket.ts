@@ -1,17 +1,18 @@
+import { planRound, MODE_RULES } from "@tot/shared";
 import { createRouter } from "../types";
 import {
   getRoomByCode,
-  getItemsByRoomId,
-  getMatchupsByRoom,
   getMatchupsByRoomAndRound,
-  getMatchupVotesByRoom,
   getMatchupVotesByVoter,
   getCurrentRound,
   insertMatchupStatement,
+  nowIso,
   type Matchup,
 } from "../db/queries";
-import { planRound } from "../lib/bracket-shape";
-import { notFound, invalidStatus, validationError } from "../lib/validation";
+import { notFound, invalidStatus, validationError, isUniqueViolation } from "../lib/validation";
+import { countParticipants, isParticipant, isValidName } from "../lib/participants";
+import { wrongModeError } from "../modes";
+import { bracketRounds } from "../modes/bracket";
 
 export const bracket = createRouter();
 
@@ -33,61 +34,16 @@ bracket.get("/:code/bracket", async (c) => {
     return invalidStatus("Bracket hasn't started yet");
   }
 
-  const items = await getItemsByRoomId(db, room.id);
-  const titleById = new Map(items.map((i) => [i.id, i.title]));
-  const N = items.length;
-  let P = 1;
-  while (P < N) P *= 2;
-  const totalRounds = Math.log2(P); // integer when N >= 1
-
-  const allMatchups = await getMatchupsByRoom(db, room.id);
   const currentRound = room.status === "revealed" ? null : await getCurrentRound(db, room.id);
 
-  // Group matchups by round.
-  const byRound = new Map<number, Matchup[]>();
-  for (const m of allMatchups) {
-    if (!byRound.has(m.round)) byRound.set(m.round, []);
-    byRound.get(m.round)!.push(m);
-  }
-  for (const list of byRound.values()) list.sort((a, b) => a.slot - b.slot);
-
-  // Vote breakdowns ONLY for past (decided) rounds, never for the current
-  // round (anti-strategy). When the room is revealed, currentRound is null
-  // so all rounds count as past.
-  const allVotes = await getMatchupVotesByRoom(db, room.id);
-  const votesByMatchup = new Map<string, { voterName: string; pickedItemId: string; isYou: boolean }[]>();
-  for (const v of allVotes) {
-    if (!votesByMatchup.has(v.matchup_id)) votesByMatchup.set(v.matchup_id, []);
-    votesByMatchup.get(v.matchup_id)!.push({
-      voterName: v.voter_name,
-      pickedItemId: v.picked_item_id,
-      isYou: !!voterId && v.voter_id === voterId,
-    });
-  }
-
-  const rounds = [...byRound.keys()].sort((a, b) => a - b).map((round) => {
-    const matchups = byRound.get(round)!.map((m) => {
-      const isPastRound = currentRound === null || round < currentRound;
-      const includeBreakdown = isPastRound && m.winner_item_id !== null;
-      return {
-        id: m.id,
-        slot: m.slot,
-        itemA: m.item_a_id
-          ? { id: m.item_a_id, title: titleById.get(m.item_a_id) ?? "" }
-          : null,
-        itemB: m.item_b_id
-          ? { id: m.item_b_id, title: titleById.get(m.item_b_id) ?? "" }
-          : null,
-        winner: m.winner_item_id
-          ? { id: m.winner_item_id, title: titleById.get(m.winner_item_id) ?? "" }
-          : null,
-        isBye: !!m.is_bye,
-        decidedByTiebreak: !!m.decided_by_tiebreak,
-        voteBreakdown: includeBreakdown ? (votesByMatchup.get(m.id) ?? []) : undefined,
-      };
-    });
-    return { round, matchups };
-  });
+  // Vote breakdowns ONLY for decided matchups in past rounds, never for the
+  // current round (anti-strategy). Once revealed, every round is past.
+  const { rounds, totalRounds } = await bracketRounds(
+    db,
+    room,
+    voterId,
+    (m) => (currentRound === null || m.round < currentRound) && m.winner_item_id !== null
+  );
 
   // My votes across all rounds (used by client to repaint and to skip
   // already-voted matchups when resuming mid-round).
@@ -117,7 +73,7 @@ bracket.post("/:code/matchup-votes", async (c) => {
   if (!voterId || typeof voterId !== "string") {
     return validationError("voterId is required");
   }
-  if (!voterName || typeof voterName !== "string" || voterName.length < 1 || voterName.length > 30) {
+  if (!isValidName(voterName)) {
     return validationError("voterName is required and must be 1-30 characters");
   }
   if (!pickedItemId || typeof pickedItemId !== "string") {
@@ -127,19 +83,15 @@ bracket.post("/:code/matchup-votes", async (c) => {
   const db = c.env.DB;
   const room = await getRoomByCode(db, code);
   if (!room) return notFound();
-  if (room.mode !== "bracket") {
-    return validationError("This room is not a bracket room");
-  }
+  const wrongMode = wrongModeError(room, "bracket");
+  if (wrongMode) return wrongMode;
   if (room.status !== "voting") {
     return invalidStatus("Matchup votes can only be submitted while voting is open");
   }
 
-  // Verify participant.
-  const participant = await db
-    .prepare("SELECT id FROM participants WHERE room_id = ? AND voter_id = ?")
-    .bind(room.id, voterId)
-    .first();
-  if (!participant) return validationError("You must join the room before voting");
+  if (!(await isParticipant(db, room.id, voterId))) {
+    return validationError("You must join the room before voting");
+  }
 
   // Verify matchup belongs to this room, is in the current round, isn't a bye,
   // and pickedItemId is one of the two competitors.
@@ -166,9 +118,8 @@ bracket.post("/:code/matchup-votes", async (c) => {
       )
       .bind(crypto.randomUUID(), room.id, matchupId, voterId, voterName.trim(), pickedItemId)
       .run();
-  } catch (e: any) {
-    const msg = String(e?.message ?? e);
-    if (msg.includes("UNIQUE")) {
+  } catch (e: unknown) {
+    if (isUniqueViolation(e)) {
       return validationError("You have already voted on this matchup");
     }
     throw e;
@@ -179,9 +130,7 @@ bracket.post("/:code/matchup-votes", async (c) => {
 
   // Compute progress for this voter in the current round.
   const currentRoundMatchups = await getMatchupsByRoomAndRound(db, room.id, currentRound);
-  const realMatchupIds = new Set(
-    currentRoundMatchups.filter((m) => !m.is_bye).map((m) => m.id)
-  );
+  const realMatchupIds = new Set(currentRoundMatchups.filter((m) => !m.is_bye).map((m) => m.id));
   const myVotes = await getMatchupVotesByVoter(db, room.id, voterId);
   const votedThisRound = myVotes.filter((v) => realMatchupIds.has(v.matchup_id)).length;
 
@@ -206,12 +155,9 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
     return;
   }
 
-  const participantRow = await db
-    .prepare("SELECT COUNT(*) as count FROM participants WHERE room_id = ?")
-    .bind(roomId)
-    .first<{ count: number }>();
-  const participantCount = participantRow?.count ?? 0;
-  if (participantCount < 2) return; // need at least 2 players to ever close a round
+  const participantCount = await countParticipants(db, roomId);
+  // A round only closes once there are enough players to ever reveal.
+  if (participantCount < MODE_RULES.bracket.minPlayersToReveal) return;
 
   // For each real matchup, count votes. The round is ready when every real
   // matchup has at least `participantCount` votes from distinct voters.
@@ -244,7 +190,8 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
       .bind(m.id)
       .all<{ picked_item_id: string; c: number }>();
 
-    let aCount = 0, bCount = 0;
+    let aCount = 0,
+      bCount = 0;
     for (const t of tallies.results) {
       if (t.picked_item_id === m.item_a_id) aCount = t.c;
       else if (t.picked_item_id === m.item_b_id) bCount = t.c;
@@ -264,18 +211,15 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
     decisions.push({ matchupId: m.id, winnerId, tiebreak });
   }
 
-  if (decisions.length === 0) {
-    // Another concurrent call already decided everything. Still need to check
-    // whether to create next round (skipped below if next-round rows exist).
-  }
-
-  const nowIso = new Date().toISOString();
-  const statements: any[] = decisions.map((d) =>
+  // decisions is empty when a concurrent call already decided everything; the
+  // next round still needs creating unless that call created it too.
+  const now = nowIso();
+  const statements: D1PreparedStatement[] = decisions.map((d) =>
     db
       .prepare(
         "UPDATE matchups SET winner_item_id = ?, decided_by_tiebreak = ?, decided_at = ? WHERE id = ? AND winner_item_id IS NULL"
       )
-      .bind(d.winnerId, d.tiebreak ? 1 : 0, nowIso, d.matchupId)
+      .bind(d.winnerId, d.tiebreak ? 1 : 0, now, d.matchupId)
   );
 
   // Build next round, or close the bracket.
@@ -311,7 +255,7 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
       );
     } else {
       for (const planned of nextRound) {
-        statements.push(insertMatchupStatement(db, roomId, round + 1, planned, nowIso));
+        statements.push(insertMatchupStatement(db, roomId, round + 1, planned, now));
       }
     }
   }
@@ -319,12 +263,11 @@ async function maybeAdvanceRound(db: D1Database, roomId: string, round: number) 
   if (statements.length > 0) {
     try {
       await db.batch(statements);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Concurrent advance race: another caller already created the next
       // round (UNIQUE(room_id, round, slot)) or wrote the same winners.
       // Swallow the constraint violation — the round is consistent either way.
-      const msg = String(e?.message ?? e);
-      if (!msg.includes("UNIQUE")) throw e;
+      if (!isUniqueViolation(e)) throw e;
     }
   }
 }

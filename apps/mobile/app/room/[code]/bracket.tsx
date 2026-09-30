@@ -184,7 +184,9 @@ export default function BracketScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
-        <Text style={styles.topic} numberOfLines={1}>{topic}</Text>
+        <Text style={styles.topic} numberOfLines={1}>
+          {topic}
+        </Text>
         <Text style={styles.progress}>
           Round {currentRound}/{totalRounds} · Matchup {doneInRound + 1} of {totalInRound}
         </Text>
@@ -212,9 +214,7 @@ export default function BracketScreen() {
         />
       </Animated.View>
 
-      {doneInRound === 0 && (
-        <Text style={styles.hint}>Tap a card to pick a winner</Text>
-      )}
+      {doneInRound === 0 && <Text style={styles.hint}>Tap a card to pick a winner</Text>}
     </View>
   );
 }

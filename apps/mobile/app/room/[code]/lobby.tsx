@@ -27,6 +27,8 @@ import {
   type RoomItem,
 } from "../../../lib/api";
 import { getVoterId, saveActiveRoom } from "../../../lib/storage";
+import { MODE_RULES } from "@tot/shared";
+import { roomScreen, type Mode } from "../../../lib/modes";
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
@@ -58,6 +60,7 @@ export default function LobbyScreen() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [topic, setTopic] = useState<string | null>(null);
   const [items, setItems] = useState<RoomItem[]>([]);
+  const [mode, setMode] = useState<Mode>("vote");
   const [allowSuggestions, setAllowSuggestions] = useState(false);
   const [currentItem, setCurrentItem] = useState("");
   const [roundNumber, setRoundNumber] = useState(1);
@@ -72,31 +75,18 @@ export default function LobbyScreen() {
         saveActiveRoom({ code, topic: room.topic, name });
       }
       setAllowSuggestions(room.allowSuggestions);
+      setMode(room.mode);
       setItems(room.items);
       if (room.roundNumber) setRoundNumber(room.roundNumber);
 
       if (room.status === "closed") {
         stop();
-        showAlert("Room Closed", "The host closed this room.", () =>
-          router.replace("/")
-        );
+        showAlert("Room Closed", "The host closed this room.", () => router.replace("/"));
         return;
-      } else if (room.status === "voting") {
+      } else if (room.status !== "open") {
         stop();
         router.replace({
-          pathname:
-            room.mode === "rank" ? "/room/[code]/rank" :
-            room.mode === "bracket" ? "/room/[code]/bracket" :
-            room.mode === "mlt" ? "/room/[code]/mlt" :
-            room.mode === "tier" ? "/room/[code]/tier" :
-            "/room/[code]/swipe",
-          params: { code, name },
-        });
-        return;
-      } else if (room.status === "revealed") {
-        stop();
-        router.replace({
-          pathname: "/room/[code]/results",
+          pathname: roomScreen(room.status, room.mode, false) ?? "/",
           params: { code, name },
         });
         return;
@@ -107,9 +97,7 @@ export default function LobbyScreen() {
     } catch (e) {
       if (e instanceof ApiError && e.code === "ROOM_NOT_FOUND") {
         stop();
-        showAlert("Room Expired", "This room no longer exists.", () =>
-          router.replace("/")
-        );
+        showAlert("Room Expired", "This room no longer exists.", () => router.replace("/"));
       }
     }
   }, 4000);
@@ -117,7 +105,8 @@ export default function LobbyScreen() {
   const handleAddItem = async () => {
     const trimmed = currentItem.trim();
     if (!trimmed) return;
-    if (items.length >= 15) return showAlert("Limit", "Maximum 15 items");
+    const { maxItems } = MODE_RULES[mode];
+    if (items.length >= maxItems) return showAlert("Limit", `Maximum ${maxItems} items`);
     if (items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())) {
       return showAlert("Duplicate", "That item already exists");
     }
@@ -144,9 +133,7 @@ export default function LobbyScreen() {
           <PulsingDot />
           <Text style={styles.statusText}>Waiting for host</Text>
         </Animated.View>
-        {roundNumber > 1 && (
-          <Text style={styles.roundBadge}>ROUND {roundNumber}</Text>
-        )}
+        {roundNumber > 1 && <Text style={styles.roundBadge}>ROUND {roundNumber}</Text>}
         {topic && (
           <Animated.Text entering={FadeInUp.duration(400).delay(100)} style={styles.topicText}>
             {topic}
@@ -180,10 +167,7 @@ export default function LobbyScreen() {
               maxLength={100}
             />
             <Pressable
-              style={({ pressed }) => [
-                styles.addButton,
-                pressed && styles.addButtonPressed,
-              ]}
+              style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
               onPress={() => {
                 handleAddItem();
                 inputRef.current?.focus();
@@ -207,11 +191,7 @@ export default function LobbyScreen() {
                   <Text style={styles.itemText} numberOfLines={1}>
                     {item.title}
                   </Text>
-                  {item.addedBy && (
-                    <Text style={styles.addedByText}>
-                      {item.addedBy.name}
-                    </Text>
-                  )}
+                  {item.addedBy && <Text style={styles.addedByText}>{item.addedBy.name}</Text>}
                 </View>
               </View>
             )}
@@ -223,19 +203,20 @@ export default function LobbyScreen() {
       )}
 
       {participants.length > 0 && (
-        <Animated.View entering={FadeInDown.duration(400).delay(300)} style={styles.participantSection}>
-          <Text style={styles.sectionHeading}>
-            IN THE ROOM ({participants.length})
-          </Text>
+        <Animated.View
+          entering={FadeInDown.duration(400).delay(300)}
+          style={styles.participantSection}
+        >
+          <Text style={styles.sectionHeading}>IN THE ROOM ({participants.length})</Text>
           <View style={styles.participantList}>
             {participants.map((p) => (
               <View key={p.participantId} style={styles.participantChip}>
                 <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {p.name.charAt(0).toUpperCase()}
-                  </Text>
+                  <Text style={styles.avatarText}>{p.name.charAt(0).toUpperCase()}</Text>
                 </View>
-                <Text style={styles.participantName} numberOfLines={1}>{p.name}</Text>
+                <Text style={styles.participantName} numberOfLines={1}>
+                  {p.name}
+                </Text>
                 {p.isCreator && (
                   <View style={styles.hostBadge}>
                     <Text style={styles.hostBadgeText}>HOST</Text>

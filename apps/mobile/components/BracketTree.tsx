@@ -111,7 +111,8 @@ export default function BracketTree({ rounds, highlightRound, expandableBreakdow
             selected={!!line.matchupId && line.matchupId === selectedId}
             onPress={
               line.matchupId && line.state !== "placeholder"
-                ? () => setSelectedId((current) => (current === line.matchupId ? null : line.matchupId))
+                ? () =>
+                    setSelectedId((current) => (current === line.matchupId ? null : line.matchupId))
                 : undefined
             }
           />
@@ -213,7 +214,10 @@ function NameLine({
 
   // The just-decided round fades in name by name.
   const body = line.highlighted ? (
-    <Animated.View entering={FadeIn.duration(350).delay(60 + index * 35)} style={StyleSheet.absoluteFill}>
+    <Animated.View
+      entering={FadeIn.duration(350).delay(60 + index * 35)}
+      style={StyleSheet.absoluteFill}
+    >
       {inner}
     </Animated.View>
   ) : (
@@ -221,11 +225,7 @@ function NameLine({
   );
 
   if (!onPress) {
-    return (
-      <View style={[styles.lineBox, styles.inert, box]}>
-        {body}
-      </View>
-    );
+    return <View style={[styles.lineBox, styles.inert, box]}>{body}</View>;
   }
   return (
     <Pressable
@@ -253,7 +253,8 @@ function MatchupDetail({
   const decided = !!m.winner;
   const winnerIsA = decided && m.winner?.id === m.itemA?.id;
   const winnerIsB = decided && m.winner?.id === m.itemB?.id;
-  const breakdown = showBreakdown && m.voteBreakdown && m.voteBreakdown.length > 0 ? m.voteBreakdown : null;
+  const breakdown =
+    showBreakdown && m.voteBreakdown && m.voteBreakdown.length > 0 ? m.voteBreakdown : null;
 
   const sideStyle = (isWinner: boolean) =>
     !decided ? styles.detailPending : isWinner ? styles.detailWinner : styles.detailLoser;
@@ -265,23 +266,33 @@ function MatchupDetail({
           {label}
           {m.isBye ? " · BYE" : !decided ? " · UP NEXT" : ""}
         </Text>
-        <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
+        <Pressable
+          onPress={onClose}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
           <Text style={styles.detailClose}>✕</Text>
         </Pressable>
       </View>
 
       {m.isBye ? (
         <Text style={styles.detailByeText}>
-          <Text style={styles.detailWinner}>{m.itemA?.title ?? "?"}</Text> advanced without a matchup
+          <Text style={styles.detailWinner}>{m.itemA?.title ?? "?"}</Text> advanced without a
+          matchup
         </Text>
       ) : (
         <View style={styles.detailPair}>
           <View style={styles.detailRow}>
-            <Text style={[styles.detailMark, winnerIsA && styles.detailMarkWinner]}>{winnerIsA ? "✓" : " "}</Text>
+            <Text style={[styles.detailMark, winnerIsA && styles.detailMarkWinner]}>
+              {winnerIsA ? "✓" : " "}
+            </Text>
             <Text style={[styles.detailSide, sideStyle(winnerIsA)]}>{m.itemA?.title ?? "?"}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={[styles.detailMark, winnerIsB && styles.detailMarkWinner]}>{winnerIsB ? "✓" : " "}</Text>
+            <Text style={[styles.detailMark, winnerIsB && styles.detailMarkWinner]}>
+              {winnerIsB ? "✓" : " "}
+            </Text>
             <Text style={[styles.detailSide, sideStyle(winnerIsB)]}>{m.itemB?.title ?? "?"}</Text>
           </View>
         </View>
@@ -296,8 +307,8 @@ function MatchupDetail({
               v.pickedItemId === m.itemA?.id
                 ? m.itemA?.title
                 : v.pickedItemId === m.itemB?.id
-                ? m.itemB?.title
-                : "?";
+                  ? m.itemB?.title
+                  : "?";
             return (
               <Text key={i} style={[styles.breakdownLine, v.isYou && styles.breakdownMe]}>
                 {v.voterName}

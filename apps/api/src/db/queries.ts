@@ -1,4 +1,4 @@
-import type { PlannedSlot } from "../lib/bracket-shape";
+import type { Mode, PlannedSlot } from "@tot/shared";
 
 export type Room = {
   id: string;
@@ -7,7 +7,7 @@ export type Room = {
   creator_voter_id: string;
   status: "open" | "voting" | "revealed" | "closed";
   allow_suggestions: number;
-  mode: "vote" | "rank" | "bracket" | "mlt" | "tier";
+  mode: Mode;
   created_at: string;
   expires_at: string;
   series_id: string | null;
@@ -47,10 +47,18 @@ export type Ranking = {
   created_at: string;
 };
 
+// expires_at is stored as a JS ISO string ("2026-09-29T12:00:00.000Z"), so it
+// must be compared against the same format. SQLite's datetime('now') renders
+// as "2026-09-29 12:00:00", and 'T' sorts after ' ', so comparing the two
+// kept rooms alive until the end of their expiry day.
+export function nowIso(): string {
+  return new Date().toISOString();
+}
+
 export async function getRoomByCode(db: D1Database, code: string): Promise<Room | null> {
   const room = await db
-    .prepare("SELECT * FROM rooms WHERE code = ? AND expires_at > datetime('now')")
-    .bind(code)
+    .prepare("SELECT * FROM rooms WHERE code = ? AND expires_at > ?")
+    .bind(code, nowIso())
     .first<Room>();
   return room;
 }
@@ -95,10 +103,7 @@ export async function getRankingsByRoomAndVoter(
   return results;
 }
 
-export async function getRankingsByRoom(
-  db: D1Database,
-  roomId: string
-): Promise<Ranking[]> {
+export async function getRankingsByRoom(db: D1Database, roomId: string): Promise<Ranking[]> {
   const { results } = await db
     .prepare("SELECT * FROM rankings WHERE room_id = ? ORDER BY voter_id, rank ASC")
     .bind(roomId)
@@ -149,10 +154,7 @@ export type MatchupVote = {
   created_at: string;
 };
 
-export async function getMatchupsByRoom(
-  db: D1Database,
-  roomId: string
-): Promise<Matchup[]> {
+export async function getMatchupsByRoom(db: D1Database, roomId: string): Promise<Matchup[]> {
   const { results } = await db
     .prepare("SELECT * FROM matchups WHERE room_id = ? ORDER BY round ASC, slot ASC")
     .bind(roomId)
@@ -212,7 +214,7 @@ export function insertMatchupStatement(
   db: D1Database,
   roomId: string,
   round: number,
-  planned: PlannedSlot,
+  planned: PlannedSlot<string>,
   nowIso: string
 ): D1PreparedStatement {
   if (planned.itemB === null) {
@@ -240,10 +242,7 @@ export type MltVote = {
   created_at: string;
 };
 
-export async function getMltVotesByRoom(
-  db: D1Database,
-  roomId: string
-): Promise<MltVote[]> {
+export async function getMltVotesByRoom(db: D1Database, roomId: string): Promise<MltVote[]> {
   const { results } = await db
     .prepare("SELECT * FROM mlt_votes WHERE room_id = ?")
     .bind(roomId)
@@ -299,10 +298,7 @@ export async function getTierPlacementsByVoter(
 // Voter ids of everyone who has hosted a round in this series. The first
 // room's series_id is only backfilled once a successor exists, so match on
 // series_id OR the series root id itself.
-export async function getSeriesHostVoterIds(
-  db: D1Database,
-  seriesId: string
-): Promise<string[]> {
+export async function getSeriesHostVoterIds(db: D1Database, seriesId: string): Promise<string[]> {
   const { results } = await db
     .prepare("SELECT DISTINCT creator_voter_id FROM rooms WHERE series_id = ?1 OR id = ?1")
     .bind(seriesId)
@@ -311,14 +307,11 @@ export async function getSeriesHostVoterIds(
 }
 
 // Newest unexpired room in a series — the round latecomers should land in.
-export async function getLatestSeriesRoom(
-  db: D1Database,
-  seriesId: string
-): Promise<Room | null> {
+export async function getLatestSeriesRoom(db: D1Database, seriesId: string): Promise<Room | null> {
   return db
     .prepare(
-      "SELECT * FROM rooms WHERE (series_id = ?1 OR id = ?1) AND expires_at > datetime('now') ORDER BY round_number DESC LIMIT 1"
+      "SELECT * FROM rooms WHERE (series_id = ?1 OR id = ?1) AND expires_at > ?2 ORDER BY round_number DESC LIMIT 1"
     )
-    .bind(seriesId)
+    .bind(seriesId, nowIso())
     .first<Room>();
 }

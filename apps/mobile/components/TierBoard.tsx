@@ -26,7 +26,9 @@ export default function TierBoard({ rows }: Props) {
               ) : (
                 titles.map((title, i) => (
                   <View key={`${title}-${i}`} style={styles.chip}>
-                    <Text style={styles.chipText} numberOfLines={1}>{title}</Text>
+                    <Text style={styles.chipText} numberOfLines={1}>
+                      {title}
+                    </Text>
                   </View>
                 ))
               )}

@@ -1,6 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:workers";
-import { createRoom, getParticipants, expectNoVoterIds, pickNextHost, revealedRankRoom, join, addItems, start, reveal, BOB, EVE, CREATOR, createNextRound, addItemsAs, startAs, getRoom, startedVoteRoom, api } from "./helpers";
+import {
+  createRoom,
+  getParticipants,
+  expectNoVoterIds,
+  pickNextHost,
+  revealedRankRoom,
+  join,
+  addItems,
+  start,
+  reveal,
+  BOB,
+  EVE,
+  CREATOR,
+  createNextRound,
+  addItemsAs,
+  startAs,
+  getRoom,
+  startedVoteRoom,
+  api,
+} from "./helpers";
 
 async function pickedBob(code: string): Promise<string> {
   const parts = await getParticipants(code);
@@ -114,16 +133,12 @@ describe("POST /rooms with previousRoomCode", () => {
     expectNoVoterIds(res.body);
     expect(res.body.roundNumber).toBe(2);
 
-    const newRoom = await env.DB.prepare(
-      "SELECT series_id, round_number FROM rooms WHERE id = ?"
-    )
+    const newRoom = await env.DB.prepare("SELECT series_id, round_number FROM rooms WHERE id = ?")
       .bind(res.body.id)
       .first<any>();
     expect(newRoom).toEqual({ series_id: roomId, round_number: 2 });
 
-    const prev = await env.DB.prepare(
-      "SELECT series_id, next_room_id FROM rooms WHERE id = ?"
-    )
+    const prev = await env.DB.prepare("SELECT series_id, next_room_id FROM rooms WHERE id = ?")
       .bind(roomId)
       .first<any>();
     expect(prev).toEqual({ series_id: roomId, next_room_id: res.body.id });
@@ -162,9 +177,7 @@ describe("POST /rooms with previousRoomCode", () => {
     expect(second.status).toBe(409);
     expect(second.body.error.code).toBe("SERIES_CONTINUED");
 
-    const count = await env.DB.prepare(
-      "SELECT COUNT(*) as c FROM rooms WHERE series_id = ?"
-    )
+    const count = await env.DB.prepare("SELECT COUNT(*) as c FROM rooms WHERE series_id = ?")
       .bind(roomId)
       .first<{ c: number }>();
     expect(count?.c).toBe(2); // round 1 (backfilled) + round 2, nothing else
@@ -174,15 +187,10 @@ describe("POST /rooms with previousRoomCode", () => {
     const { code, roomId } = await revealedRankRoom();
     await pickedBob(code);
 
-    const [a, b] = await Promise.all([
-      createNextRound(code, BOB),
-      createNextRound(code, BOB),
-    ]);
+    const [a, b] = await Promise.all([createNextRound(code, BOB), createNextRound(code, BOB)]);
     expect([a.status, b.status].sort()).toEqual([201, 409]);
 
-    const count = await env.DB.prepare(
-      "SELECT COUNT(*) as c FROM rooms WHERE series_id = ?"
-    )
+    const count = await env.DB.prepare("SELECT COUNT(*) as c FROM rooms WHERE series_id = ?")
       .bind(roomId)
       .first<{ c: number }>();
     expect(count?.c).toBe(2);

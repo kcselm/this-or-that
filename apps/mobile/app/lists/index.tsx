@@ -41,8 +41,8 @@ export default function SavedListsScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.intro}>
-        Build a list ahead of time. It's saved on this device, and you can load it into any
-        room you host.
+        Build a list ahead of time. It's saved on this device, and you can load it into any room you
+        host.
       </Text>
 
       <Pressable

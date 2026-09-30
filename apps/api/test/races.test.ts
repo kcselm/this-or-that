@@ -46,15 +46,11 @@ describe("concurrent mlt vote submission", () => {
     await join(code, EVE);
 
     const parts = await getParticipants(code);
-    const bobId = parts.body.participants.find(
-      (p: any) => p.name === "Bob"
-    ).participantId;
+    const bobId = parts.body.participants.find((p: any) => p.name === "Bob").participantId;
 
     await start(code);
 
-    const item = await env.DB.prepare(
-      "SELECT id FROM items WHERE room_id = ? LIMIT 1"
-    )
+    const item = await env.DB.prepare("SELECT id FROM items WHERE room_id = ? LIMIT 1")
       .bind(roomId)
       .first<{ id: string }>();
 

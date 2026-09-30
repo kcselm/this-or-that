@@ -52,7 +52,8 @@ describe("wrapLines", () => {
   });
 });
 
-const LONG = "The Wolfpack - Six brothers raised locked inside a Manhattan flat learn about life by reenacting the";
+const LONG =
+  "The Wolfpack - Six brothers raised locked inside a Manhattan flat learn about life by reenacting the";
 
 function blockHeight(fit: ReturnType<typeof fitTitle>): number {
   const name = fit.name.maxLines * fit.name.lineHeight;
@@ -63,7 +64,9 @@ function blockHeight(fit: ReturnType<typeof fitTitle>): number {
 describe("fitTitle", () => {
   it("shows a long title whole in a phone-width card", () => {
     const fit = fitTitle(LONG, 300, 220);
-    expect(fit.name.maxLines).toBeGreaterThanOrEqual(wrapLines("The Wolfpack", 300, fit.name.fontSize));
+    expect(fit.name.maxLines).toBeGreaterThanOrEqual(
+      wrapLines("The Wolfpack", 300, fit.name.fontSize)
+    );
     expect(fit.note!.maxLines).toBeGreaterThanOrEqual(
       wrapLines(splitTitle(LONG).note!, 300, fit.note!.fontSize)
     );

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { layoutBracket, type BracketLayout, type BracketLine } from "./bracket-layout";
-import { planRound } from "./bracket-shape";
+import { planRound } from "@tot/shared";
 import type { BracketRound, BracketMatchup } from "./api";
 
 // --- fixtures ----------------------------------------------------------------
@@ -127,12 +127,7 @@ describe("layoutBracket (linear)", () => {
   it("drops the winner column when the columns would get too narrow", () => {
     const rounds = simulate(13, 1, true);
     const layout = layoutBracket({ rounds, width: 360, mode: "linear" });
-    expect(layout.columns.map((c) => c.label)).toEqual([
-      "ROUND 1",
-      "ROUND 2",
-      "ROUND 3",
-      "FINAL",
-    ]);
+    expect(layout.columns.map((c) => c.label)).toEqual(["ROUND 1", "ROUND 2", "ROUND 3", "FINAL"]);
     expect(linesOfRound(layout, 5)).toHaveLength(0);
   });
 

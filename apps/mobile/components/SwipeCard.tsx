@@ -62,45 +62,31 @@ export default function SwipeCard({ title, onSwipe }: Props) {
     ),
     borderColor: interpolateColor(
       translateX.value,
-      [-SWIPE_THRESHOLD * 1.5, -SWIPE_THRESHOLD * 0.5, 0, SWIPE_THRESHOLD * 0.5, SWIPE_THRESHOLD * 1.5],
+      [
+        -SWIPE_THRESHOLD * 1.5,
+        -SWIPE_THRESHOLD * 0.5,
+        0,
+        SWIPE_THRESHOLD * 0.5,
+        SWIPE_THRESHOLD * 1.5,
+      ],
       [colors.no, colors.sand, colors.sand, colors.sand, colors.yes]
     ),
   }));
 
   const yesOpacity = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateX.value,
-      [0, SWIPE_THRESHOLD],
-      [0, 1],
-      Extrapolation.CLAMP
-    ),
+    opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
     transform: [
       {
-        scale: interpolate(
-          translateX.value,
-          [0, SWIPE_THRESHOLD],
-          [0.5, 1],
-          Extrapolation.CLAMP
-        ),
+        scale: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0.5, 1], Extrapolation.CLAMP),
       },
     ],
   }));
 
   const noOpacity = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateX.value,
-      [-SWIPE_THRESHOLD, 0],
-      [1, 0],
-      Extrapolation.CLAMP
-    ),
+    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
     transform: [
       {
-        scale: interpolate(
-          translateX.value,
-          [-SWIPE_THRESHOLD, 0],
-          [1, 0.5],
-          Extrapolation.CLAMP
-        ),
+        scale: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1, 0.5], Extrapolation.CLAMP),
       },
     ],
   }));

@@ -1,23 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
 import { showAlert } from "../../../lib/alert";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn } from "react-native-reanimated";
 import RankCard from "../../../components/RankCard";
 import RankSlot, { type SlotRect } from "../../../components/RankSlot";
-import {
-  getRoom,
-  getNextRankItem,
-  submitRanking,
-  ApiError,
-} from "../../../lib/api";
+import { getRoom, getNextRankItem, submitRanking, ApiError } from "../../../lib/api";
 import { getVoterId } from "../../../lib/storage";
 import { colors, spacing, typography } from "../../../lib/theme";
 
@@ -177,18 +166,16 @@ export default function RankScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       <View style={styles.header}>
-        <Text style={styles.topic} numberOfLines={1}>{topic}</Text>
+        <Text style={styles.topic} numberOfLines={1}>
+          {topic}
+        </Text>
         <Text style={styles.progress}>{placedCount + (current ? 1 : 0)} of 5</Text>
       </View>
 
       <View style={styles.cardArea}>
         {current && (
           <Animated.View key={current.id} entering={FadeIn.duration(200)} style={styles.cardWrap}>
-            <RankCard
-              title={current.title}
-              onDragMove={handleDragMove}
-              onDragEnd={handleDragEnd}
-            />
+            <RankCard title={current.title} onDragMove={handleDragMove} onDragEnd={handleDragEnd} />
           </Animated.View>
         )}
       </View>

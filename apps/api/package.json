@@ -8,15 +8,21 @@
     "migrate": "wrangler d1 migrations apply tot-db --remote",
     "migrate:local": "wrangler d1 migrations apply tot-db --local",
     "deploy": "npm test && npm run migrate && wrangler deploy",
-    "deploy:worker": "wrangler deploy"
+    "deploy:worker": "wrangler deploy",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test",
+    "lint": "eslint ."
   },
   "dependencies": {
+    "@tot/shared": "*",
     "hono": "^4"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.1.2",
     "@cloudflare/workers-types": "^4",
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
     "typescript": "^5",
+    "typescript-eslint": "^8.71.0",
     "vitest": "^4.1.11",
     "wrangler": "^4"
   }

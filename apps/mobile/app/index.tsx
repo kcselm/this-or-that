@@ -1,74 +1,59 @@
-import { useCallback, useState } from "react"
-import { View, Text, StyleSheet, Pressable } from "react-native"
-import { useRouter, useFocusEffect } from "expo-router"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated"
-import { colors, spacing, radius, typography, shadows } from "../lib/theme"
-import { getActiveRoom, clearActiveRoom, getVoterId, type ActiveRoom } from "../lib/storage"
-import { getRoom } from "../lib/api"
-import { showAlert } from "../lib/alert"
+import { useCallback, useState } from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { colors, spacing, radius, typography, shadows } from "../lib/theme";
+import { getActiveRoom, clearActiveRoom, getVoterId, type ActiveRoom } from "../lib/storage";
+import { getRoom } from "../lib/api";
+import { roomScreen } from "../lib/modes";
+import { showAlert } from "../lib/alert";
 
 export default function HomeScreen() {
-  const router = useRouter()
-  const insets = useSafeAreaInsets()
-  const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null)
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       const checkActiveRoom = async () => {
-        const room = await getActiveRoom()
+        const room = await getActiveRoom();
         if (!room) {
-          setActiveRoom(null)
-          return
+          setActiveRoom(null);
+          return;
         }
 
         try {
-          const voterId = await getVoterId()
-          const data = await getRoom(room.code, voterId)
+          const voterId = await getVoterId();
+          const data = await getRoom(room.code, voterId);
           if (data.status === "closed") {
             // Closed rooms have nothing to rejoin — drop the banner.
-            await clearActiveRoom()
-            setActiveRoom(null)
-            return
+            await clearActiveRoom();
+            setActiveRoom(null);
+            return;
           }
           // Room still exists — show the banner
-          setActiveRoom({ ...room, topic: data.topic })
+          setActiveRoom({ ...room, topic: data.topic });
         } catch {
           // Room expired or gone
-          await clearActiveRoom()
-          setActiveRoom(null)
+          await clearActiveRoom();
+          setActiveRoom(null);
         }
-      }
-      checkActiveRoom()
+      };
+      checkActiveRoom();
     }, [])
-  )
+  );
 
   const handleRejoin = async () => {
-    if (!activeRoom) return
+    if (!activeRoom) return;
     try {
-      const voterId = await getVoterId()
-      const data = await getRoom(activeRoom.code, voterId)
+      const voterId = await getVoterId();
+      const data = await getRoom(activeRoom.code, voterId);
+      const screen = roomScreen(data.status, data.mode, !!activeRoom.isCreator);
 
-      if (data.status === "open") {
-        if (activeRoom.isCreator) {
-          router.push({
-            pathname: "/create/share",
-            params: { code: activeRoom.code, name: activeRoom.name },
-          })
-        } else {
-          router.push({
-            pathname: "/room/[code]/lobby",
-            params: { code: activeRoom.code, name: activeRoom.name },
-          })
-        }
-      } else if (data.status === "voting") {
+      if (screen) {
         router.push({
-          pathname:
-            data.mode === "rank" ? "/room/[code]/rank" :
-            data.mode === "bracket" ? "/room/[code]/bracket" :
-            data.mode === "mlt" ? "/room/[code]/mlt" :
-            data.mode === "tier" ? "/room/[code]/tier" :
-            "/room/[code]/swipe",
+          pathname: screen,
           params: {
             code: activeRoom.code,
             name: activeRoom.name,
@@ -76,29 +61,24 @@ export default function HomeScreen() {
             // "Reveal Results" button on the waiting screen.
             isCreator: activeRoom.isCreator ? "true" : "false",
           },
-        })
-      } else if (data.status === "revealed") {
-        router.push({
-          pathname: "/room/[code]/results",
-          params: { code: activeRoom.code, name: activeRoom.name },
-        })
+        });
       } else {
         // Closed — results are gone; clear the banner instead of routing
         // into a permanent "results aren't ready" loop.
-        await clearActiveRoom()
-        setActiveRoom(null)
-        showAlert("Room Closed", "The host closed this room.")
+        await clearActiveRoom();
+        setActiveRoom(null);
+        showAlert("Room Closed", "The host closed this room.");
       }
     } catch {
-      await clearActiveRoom()
-      setActiveRoom(null)
+      await clearActiveRoom();
+      setActiveRoom(null);
     }
-  }
+  };
 
   const handleDismiss = async () => {
-    await clearActiveRoom()
-    setActiveRoom(null)
-  }
+    await clearActiveRoom();
+    setActiveRoom(null);
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
@@ -109,10 +89,7 @@ export default function HomeScreen() {
         <View style={[styles.dot, styles.dotAmber]} />
       </View>
 
-      <Animated.View
-        entering={FadeInUp.duration(600).springify()}
-        style={styles.header}
-      >
+      <Animated.View entering={FadeInUp.duration(600).springify()} style={styles.header}>
         <Text style={styles.titleLine1}>This</Text>
         <Text style={styles.titleOr}>or</Text>
         <Text style={styles.titleLine2}>That</Text>
@@ -132,10 +109,7 @@ export default function HomeScreen() {
           style={styles.rejoinCard}
         >
           <Pressable
-            style={({ pressed }) => [
-              styles.rejoinContent,
-              pressed && { opacity: 0.8 },
-            ]}
+            style={({ pressed }) => [styles.rejoinContent, pressed && { opacity: 0.8 }]}
             onPress={handleRejoin}
           >
             <View style={styles.rejoinDot} />
@@ -150,10 +124,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={handleDismiss}
             hitSlop={8}
-            style={({ pressed }) => [
-              styles.dismissButton,
-              pressed && { opacity: 0.5 },
-            ]}
+            style={({ pressed }) => [styles.dismissButton, pressed && { opacity: 0.5 }]}
           >
             <Text style={styles.dismissText}>x</Text>
           </Pressable>
@@ -205,7 +176,7 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -386,4 +357,4 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.mist,
   },
-})
+});
