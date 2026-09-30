@@ -70,6 +70,29 @@ describe("headline", () => {
     expect(headline(vote)).toBe("Tacos");
     expect(headline(bracket)).toBe("Alien");
   });
+
+  it("has no headline for a draft, which has no winner", () => {
+    const draft: RevealedResults = {
+      revealed: true,
+      mode: "draft",
+      topic: "Pizza toppings",
+      draftOrder: "snake",
+      rounds: 1,
+      totalPicks: 2,
+      picksMade: 2,
+      players: [
+        {
+          seat: 0,
+          participantId: "p1",
+          name: "Alex",
+          isCreator: true,
+          isYou: false,
+          picks: [{ pickIndex: 0, round: 0, title: "Pepperoni" }],
+        },
+      ],
+    };
+    expect(headline(draft)).toBeNull();
+  });
 });
 
 describe("withMode", () => {

@@ -15,6 +15,7 @@ export const MODE_TITLES: Record<Mode, string> = {
   bracket: "Bracket",
   mlt: "Most Likely To",
   tier: "Tier List",
+  draft: "Draft",
 };
 
 /** Label on the host's start button. */
@@ -24,6 +25,7 @@ export const START_LABELS: Record<Mode, string> = {
   bracket: "Start Tournament",
   mlt: "Start Game",
   tier: "Start Tier List",
+  draft: "Start Draft",
 };
 
 /** What the waiting screen says a player who isn't done yet is doing. */
@@ -33,6 +35,7 @@ export const IN_PROGRESS_LABELS: Record<Mode, string> = {
   bracket: "Voting...",
   mlt: "Voting on prompts...",
   tier: "Sorting...",
+  draft: "Drafting...",
 };
 
 const PLAY_SCREENS = {
@@ -41,6 +44,7 @@ const PLAY_SCREENS = {
   bracket: "/room/[code]/bracket",
   mlt: "/room/[code]/mlt",
   tier: "/room/[code]/tier",
+  draft: "/room/[code]/draft",
 } as const satisfies Record<Mode, string>;
 
 export type PlayScreen = (typeof PLAY_SCREENS)[Mode];

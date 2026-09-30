@@ -10,14 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import Animated, {
-  FadeInDown,
-  FadeInUp,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import {
   getRoom,
   getParticipants,
@@ -32,27 +25,7 @@ import { roomScreen, type Mode } from "../../../lib/modes";
 import { usePolling } from "../../../lib/usePolling";
 import { showAlert } from "../../../lib/alert";
 import { colors, spacing, radius, typography, shadows } from "../../../lib/theme";
-
-function PulsingDot() {
-  const opacity = useSharedValue(1);
-
-  opacity.value = withRepeat(withTiming(0.3, { duration: 1000 }), -1, true);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  return <Animated.View style={[dotStyles.dot, style]} />;
-}
-
-const dotStyles = StyleSheet.create({
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.coral,
-  },
-});
+import PulsingDot from "../../../components/PulsingDot";
 
 export default function LobbyScreen() {
   const router = useRouter();
@@ -140,9 +113,11 @@ export default function LobbyScreen() {
           </Animated.Text>
         )}
         <Animated.Text entering={FadeInUp.duration(400).delay(150)} style={styles.subheading}>
-          {allowSuggestions
-            ? "Add items while you wait!"
-            : "The host is still setting up. Voting will start soon..."}
+          {mode === "draft"
+            ? "The host will start the draft soon. Get your list ready!"
+            : allowSuggestions
+              ? "Add items while you wait!"
+              : "The host is still setting up. Voting will start soon..."}
         </Animated.Text>
       </View>
 

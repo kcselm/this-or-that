@@ -11,6 +11,8 @@ describe("roomScreen", () => {
     expect(roomScreen("voting", "vote", false)).toBe("/room/[code]/swipe");
     expect(roomScreen("voting", "rank", true)).toBe("/room/[code]/rank");
     expect(roomScreen("voting", "tier", false)).toBe(playScreen("tier"));
+    expect(roomScreen("voting", "draft", true)).toBe("/room/[code]/draft");
+    expect(playScreen("draft")).toBe("/room/[code]/draft");
   });
 
   it("sends everyone to results once revealed, and nowhere once closed", () => {
@@ -40,5 +42,10 @@ describe("startBlocker", () => {
   it("is null when the room can start", () => {
     expect(startBlocker("bracket", 8, 1)).toBeNull();
     expect(startBlocker("mlt", 3, 3)).toBeNull();
+  });
+
+  it("needs no items for a draft, only a second player", () => {
+    expect(startBlocker("draft", 0, 1)).toBe("1 of 2 joined — share the code to fill the room.");
+    expect(startBlocker("draft", 0, 2)).toBeNull();
   });
 });

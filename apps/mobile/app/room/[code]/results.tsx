@@ -11,6 +11,7 @@ import RankResults from "../../../components/results/RankResults";
 import BracketResults from "../../../components/results/BracketResults";
 import MltResults from "../../../components/results/MltResults";
 import TierResults from "../../../components/results/TierResults";
+import DraftResults from "../../../components/results/DraftResults";
 import { resultStyles } from "../../../components/results/styles";
 import { colors, spacing, radius, typography } from "../../../lib/theme";
 
@@ -135,6 +136,8 @@ export default function ResultsScreen() {
       return <MltResults data={data} homeLabel={homeLabel} onHome={() => leave(true)} />;
     case "tier":
       return <TierResults data={data} homeLabel={homeLabel} onHome={() => leave()} />;
+    case "draft":
+      return <DraftResults data={data} homeLabel={homeLabel} onHome={() => leave()} />;
   }
 }
 
