@@ -116,7 +116,7 @@ CREATE TABLE tier_placements (
 );
 
 -- Indexes
-CREATE INDEX idx_rooms_code ON rooms(code);
+CREATE INDEX idx_rooms_expires ON rooms(expires_at);
 CREATE INDEX idx_rooms_series ON rooms(series_id);
 CREATE INDEX idx_items_room ON items(room_id);
 CREATE INDEX idx_votes_room ON votes(room_id);

@@ -47,10 +47,18 @@ export type Ranking = {
   created_at: string;
 };
 
+// expires_at is stored as a JS ISO string ("2026-09-29T12:00:00.000Z"), so it
+// must be compared against the same format. SQLite's datetime('now') renders
+// as "2026-09-29 12:00:00", and 'T' sorts after ' ', so comparing the two
+// kept rooms alive until the end of their expiry day.
+export function nowIso(): string {
+  return new Date().toISOString();
+}
+
 export async function getRoomByCode(db: D1Database, code: string): Promise<Room | null> {
   const room = await db
-    .prepare("SELECT * FROM rooms WHERE code = ? AND expires_at > datetime('now')")
-    .bind(code)
+    .prepare("SELECT * FROM rooms WHERE code = ? AND expires_at > ?")
+    .bind(code, nowIso())
     .first<Room>();
   return room;
 }
@@ -317,8 +325,8 @@ export async function getLatestSeriesRoom(
 ): Promise<Room | null> {
   return db
     .prepare(
-      "SELECT * FROM rooms WHERE (series_id = ?1 OR id = ?1) AND expires_at > datetime('now') ORDER BY round_number DESC LIMIT 1"
+      "SELECT * FROM rooms WHERE (series_id = ?1 OR id = ?1) AND expires_at > ?2 ORDER BY round_number DESC LIMIT 1"
     )
-    .bind(seriesId)
+    .bind(seriesId, nowIso())
     .first<Room>();
 }

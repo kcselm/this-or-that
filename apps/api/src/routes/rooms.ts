@@ -67,8 +67,10 @@ rooms.post("/", async (c) => {
       return Response.json({ error: { code: "INTERNAL_ERROR", message: "Failed to generate unique code" } }, { status: 500 });
     }
     code = generateCode();
+    // Check expired rooms too: rooms.code is UNIQUE, and an expired room keeps
+    // its code until the cleanup cron deletes it.
     const existing = await db
-      .prepare("SELECT id FROM rooms WHERE code = ? AND expires_at > datetime('now')")
+      .prepare("SELECT id FROM rooms WHERE code = ?")
       .bind(code)
       .first();
     if (!existing) break;
