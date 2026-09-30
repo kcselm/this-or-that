@@ -8,6 +8,7 @@ describe("modes", () => {
       const rules = MODE_RULES[mode];
       expect(rules.minItems, mode).toBeLessThanOrEqual(rules.maxItems);
       expect(rules.minPlayersToStart, mode).toBeLessThanOrEqual(rules.minPlayersToReveal);
+      expect(typeof rules.joinAfterStart, mode).toBe("boolean");
     }
   });
 
