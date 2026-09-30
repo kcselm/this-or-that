@@ -473,7 +473,16 @@ rooms.post("/:code/close", async (c) => {
     .bind(room.id)
     .run();
   if ((closed.meta.changes ?? 0) === 0) {
-    return invalidStatus("Results are already revealed — closing would hide them");
+    // Lost a race: another close (e.g. a double tap) or the final reveal won.
+    const now = await db
+      .prepare("SELECT status FROM rooms WHERE id = ?")
+      .bind(room.id)
+      .first<{ status: string }>();
+    return invalidStatus(
+      now?.status === "closed"
+        ? "Room is already closed"
+        : "Results are already revealed — closing would hide them"
+    );
   }
 
   return Response.json({ success: true, status: "closed" });
